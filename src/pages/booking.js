@@ -4,10 +4,10 @@ import { transport } from '../data/services.js';
 import { isLoggedIn, getCurrentUser, createBooking, showToast, appHref } from '../utils.js';
 
 // RAZORPAY CONFIG
-// ⚠️ Replace 'rzp_test_YOUR_KEY_HERE' with your actual Razorpay Test Key
-// Get your key at: https://dashboard.razorpay.com/app/keys
-const RAZORPAY_KEY = 'rzp_test_SXRQlAUuikOAUn';
-const DEMO_MODE = RAZORPAY_KEY === 'rzp_test_YOUR_KEY_HERE'; // auto-detects demo mode
+// Key is loaded from .env file (VITE_RAZORPAY_KEY) — never hardcoded here
+// See .env.example for setup instructions
+const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY || '';
+const DEMO_MODE = !RAZORPAY_KEY || RAZORPAY_KEY === 'rzp_test_YOUR_KEY_HERE'; // auto-detects demo mode
 
 export function renderBooking(id, params) {
   const checkin = params.get('checkin') || '';
