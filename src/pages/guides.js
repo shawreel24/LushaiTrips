@@ -1,7 +1,8 @@
 import { guides } from '../data/services.js';
-import { starsHTML } from '../utils.js';
+import { starsHTML, appHref } from '../utils.js';
 
 export function renderGuides() {
+  const H = appHref;
   return `
     <section class="page-hero">
       <div class="container">
@@ -17,7 +18,7 @@ export function renderGuides() {
           <div style="font-size:2.5rem;margin-bottom:16px">🧭</div>
           <h2 style="margin-bottom:12px">Are You a Local Expert?</h2>
           <p style="max-width:480px;margin:0 auto 28px">Join LushaiTrips as a certified guide. Share your knowledge of Mizoram's hidden trails, wildlife, and culture.</p>
-          <a href="/host-signup-guide" class="btn btn-primary btn-lg" data-link>Register as a Guide</a>
+          <a href="${H('/host-signup-guide')}" class="btn btn-primary btn-lg" data-link>Register as a Guide</a>
         </div>
       </div>
     </section>

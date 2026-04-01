@@ -17,7 +17,7 @@ import { renderHostSignupGuide, initHostSignupGuide } from './pages/host-signup-
 import { renderHostSignupTransport, initHostSignupTransport } from './pages/host-signup-transport.js';
 import { renderProfile, initProfile } from './pages/profile.js';
 import { renderHostDashboard, initHostDashboard } from './pages/host-dashboard.js';
-import { scrollTop } from './utils.js';
+import { scrollTop, appHref, getRoutePathname } from './utils.js';
 
 // ── Router ─────────────────────────────────────────────────────────────────
 const routes = {
@@ -66,16 +66,29 @@ function matchRoute(pathname) {
   // 404
   return {
     route: {
-      render: () => `<div style="min-height:80vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:120px 24px"><div><div style="font-size:5rem;margin-bottom:16px">🗺️</div><h1 style="margin-bottom:12px">Page Not Found</h1><p style="margin-bottom:24px;color:var(--text-muted)">Looks like this trail doesn't exist.</p><a href="/" class="btn btn-primary" data-link>Back to Home</a></div></div>`,
+      render: () => `<div style="min-height:80vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:120px 24px"><div><div style="font-size:5rem;margin-bottom:16px">🗺️</div><h1 style="margin-bottom:12px">Page Not Found</h1><p style="margin-bottom:24px;color:var(--text-muted)">Looks like this trail doesn't exist.</p><a href="${appHref('/')}" class="btn btn-primary" data-link>Back to Home</a></div></div>`,
       init: () => {}, footer: true
     }, params: {}
   };
 }
 
+function toHistoryUrl(input) {
+  const trimmed = input.trim();
+  const qIdx = trimmed.indexOf('?');
+  const pathPart = qIdx >= 0 ? trimmed.slice(0, qIdx) : trimmed;
+  const queryPart = qIdx >= 0 ? trimmed.slice(qIdx) : '';
+  const basePrefix = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const isFull =
+    !!basePrefix &&
+    (pathPart === basePrefix || pathPart.startsWith(`${basePrefix}/`));
+  return isFull ? pathPart + queryPart : appHref(pathPart) + queryPart;
+}
+
 async function navigate(href) {
-  const url = new URL(href, window.location.origin);
-  history.pushState({}, '', url.pathname + url.search);
-  await render(url.pathname, url.searchParams);
+  const target = toHistoryUrl(href);
+  const url = new URL(target, window.location.origin);
+  history.pushState({}, '', url.pathname + url.search + url.hash);
+  await render(getRoutePathname(url.pathname), url.searchParams);
 }
 
 async function render(pathname, searchParams = new URLSearchParams()) {
@@ -124,7 +137,7 @@ function wireLinks() {
 function handleLink(e) {
   e.preventDefault();
   const href = e.currentTarget.getAttribute('href');
-  if (href && href !== '#') navigate(href);
+  if (href && href !== '#') void navigate(href);
 }
 
 // Expose router globally
@@ -132,8 +145,8 @@ window.router = { navigate };
 
 // Handle browser back/forward
 window.addEventListener('popstate', () => {
-  render(location.pathname, new URLSearchParams(location.search));
+  render(getRoutePathname(location.pathname), new URLSearchParams(location.search));
 });
 
 // Boot
-render(location.pathname, new URLSearchParams(location.search));
+render(getRoutePathname(location.pathname), new URLSearchParams(location.search));

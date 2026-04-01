@@ -1,4 +1,4 @@
-import { loginUser, showToast } from '../utils.js';
+import { loginUser, showToast, appHref } from '../utils.js';
 
 export function renderLogin() {
   return `
@@ -30,8 +30,8 @@ export function renderLogin() {
 
         <button class="btn btn-primary w-full" id="login-btn" style="justify-content:center;padding:14px">Log In</button>
 
-        <div class="auth-switch mt-16">Don't have an account? <a href="/signup-user" data-link>Sign up</a></div>
-        <div class="auth-switch" style="margin-top:8px">Are you a host? <a href="/host-signup-stay" data-link>Register your property →</a></div>
+        <div class="auth-switch mt-16">Don't have an account? <a href="${appHref('/signup-user')}" data-link>Sign up</a></div>
+        <div class="auth-switch" style="margin-top:8px">Are you a host? <a href="${appHref('/host-signup-stay')}" data-link>Register your property →</a></div>
       </div>
     </div>
   `;

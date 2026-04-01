@@ -1,8 +1,9 @@
 import { destinations } from '../data/destinations.js';
 import { stays } from '../data/stays.js';
-import { getReviews, addReview, starsHTML, calcAvgRating, isLoggedIn, getCurrentUser, showToast, isWishlisted, toggleWishlist } from '../utils.js';
+import { getReviews, addReview, starsHTML, calcAvgRating, isLoggedIn, getCurrentUser, showToast, isWishlisted, toggleWishlist, appHref } from '../utils.js';
 
 export function renderDestinationDetail(id) {
+  const H = appHref;
   const dest = destinations.find(d => d.id === id);
   if (!dest) return `<div class="page-hero container"><h1>Destination not found</h1></div>`;
 
@@ -134,10 +135,10 @@ export function renderDestinationDetail(id) {
           <div class="booking-widget">
             <div style="font-family:var(--font-head);font-size:1.1rem;font-weight:700;margin-bottom:12px">🌄 Plan a Trip Here</div>
             <div style="font-size:0.9rem;color:var(--text-muted);margin-bottom:20px">Find stays, guides, and transport for ${dest.name}.</div>
-            <a href="/stays" class="btn btn-primary w-full" data-link style="justify-content:center;margin-bottom:12px">🏡 Browse Stays</a>
-            <a href="/guides" class="btn btn-secondary w-full" data-link style="justify-content:center;margin-bottom:12px">👨‍🏫 Hire a Guide</a>
-            <a href="/transport" class="btn btn-secondary w-full" data-link style="justify-content:center;margin-bottom:20px">🚗 Book Transport</a>
-            <a href="/surprise" class="btn btn-amber w-full" data-link style="justify-content:center">🎲 Surprise Me</a>
+            <a href="${H('/stays')}" class="btn btn-primary w-full" data-link style="justify-content:center;margin-bottom:12px">🏡 Browse Stays</a>
+            <a href="${H('/guides')}" class="btn btn-secondary w-full" data-link style="justify-content:center;margin-bottom:12px">👨‍🏫 Hire a Guide</a>
+            <a href="${H('/transport')}" class="btn btn-secondary w-full" data-link style="justify-content:center;margin-bottom:20px">🚗 Book Transport</a>
+            <a href="${H('/surprise')}" class="btn btn-amber w-full" data-link style="justify-content:center">🎲 Surprise Me</a>
             <div class="divider-h"></div>
             <div style="font-size:0.85rem;color:var(--text-muted);text-align:center">🔒 Secure payments via Razorpay</div>
           </div>

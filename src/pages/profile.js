@@ -1,10 +1,10 @@
-import { getCurrentUser, getUserBookings, getWishlist, logout, showToast } from '../utils.js';
+import { getCurrentUser, getUserBookings, getWishlist, logout, showToast, starsHTML, appHref } from '../utils.js';
 import { stays } from '../data/stays.js';
-import { starsHTML } from '../utils.js';
 
 export function renderProfile() {
+  const H = appHref;
   const user = getCurrentUser();
-  if (!user) return `<div class="page-hero container"><h1>Please <a href="/login" data-link style="color:var(--emerald-400)">log in</a> to view your profile</h1></div>`;
+  if (!user) return `<div class="page-hero container"><h1>Please <a href="${H('/login')}" data-link style="color:var(--emerald-400)">log in</a> to view your profile</h1></div>`;
   const bookings = getUserBookings();
   const wishlist = getWishlist();
   const wishlisted = stays.filter(s => wishlist.includes(s.id));
@@ -50,7 +50,7 @@ export function renderProfile() {
               <div style="font-size:4rem;margin-bottom:16px">🏕️</div>
               <h3 style="margin-bottom:12px">No bookings yet</h3>
               <p style="margin-bottom:24px">Start exploring Mizoram's hidden gems!</p>
-              <a href="/discover" class="btn btn-primary" data-link>Discover Destinations</a>
+              <a href="${H('/discover')}" class="btn btn-primary" data-link>Discover Destinations</a>
             </div>
           `}
         </div>
@@ -68,7 +68,7 @@ export function renderProfile() {
               <div style="font-size:4rem;margin-bottom:16px">🤍</div>
               <h3 style="margin-bottom:12px">Your wishlist is empty</h3>
               <p style="margin-bottom:24px">Save stays you love while browsing</p>
-              <a href="/stays" class="btn btn-primary" data-link>Browse Stays</a>
+              <a href="${H('/stays')}" class="btn btn-primary" data-link>Browse Stays</a>
             </div>`}
         </div>
 
@@ -87,9 +87,9 @@ export function renderProfile() {
               <h4 style="margin-bottom:12px">Become a Host</h4>
               <p style="font-size:0.9rem;color:var(--text-muted);margin-bottom:16px">List your property, guide service, or transport on LushaiTrips.</p>
               <div style="display:flex;gap:10px;flex-wrap:wrap">
-                <a href="/host-signup-stay" class="btn btn-outline btn-sm" data-link>🏡 List Stay</a>
-                <a href="/host-signup-guide" class="btn btn-outline btn-sm" data-link>🧭 List Guide</a>
-                <a href="/host-signup-transport" class="btn btn-outline btn-sm" data-link>🚗 List Transport</a>
+                <a href="${H('/host-signup-stay')}" class="btn btn-outline btn-sm" data-link>🏡 List Stay</a>
+                <a href="${H('/host-signup-guide')}" class="btn btn-outline btn-sm" data-link>🧭 List Guide</a>
+                <a href="${H('/host-signup-transport')}" class="btn btn-outline btn-sm" data-link>🚗 List Transport</a>
               </div>` : ''}
           </div>
         </div>

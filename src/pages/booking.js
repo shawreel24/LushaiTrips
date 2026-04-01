@@ -1,7 +1,7 @@
 import { stays } from '../data/stays.js';
 import { guides } from '../data/services.js';
 import { transport } from '../data/services.js';
-import { isLoggedIn, getCurrentUser, createBooking, showToast } from '../utils.js';
+import { isLoggedIn, getCurrentUser, createBooking, showToast, appHref } from '../utils.js';
 
 // RAZORPAY CONFIG
 // ⚠️ Replace 'rzp_test_YOUR_KEY_HERE' with your actual Razorpay Test Key
@@ -39,7 +39,7 @@ export function renderBooking(id, params) {
               <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius);padding:20px;margin-bottom:28px">
                 <div style="font-weight:700;margin-bottom:6px">⚠️ Login Required</div>
                 <div style="font-size:0.9rem;color:var(--text-muted);margin-bottom:12px">Please log in to complete your booking.</div>
-                <a href="/login" class="btn btn-primary btn-sm" data-link>Log in to Continue</a>
+                <a href="${appHref('/login')}" class="btn btn-primary btn-sm" data-link>Log in to Continue</a>
               </div>
             ` : ''}
 

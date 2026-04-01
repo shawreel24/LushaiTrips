@@ -1,6 +1,7 @@
-import { getLastBooking } from '../utils.js';
+import { getLastBooking, appHref } from '../utils.js';
 
 export function renderBookingConfirmed() {
+  const H = appHref;
   const b = getLastBooking();
   return `
     <div style="min-height:80vh;display:flex;align-items:center;justify-content:center;padding:120px 24px 60px">
@@ -33,16 +34,12 @@ export function renderBookingConfirmed() {
         </div>
 
         <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-          <a href="/profile" class="btn btn-primary btn-lg" data-link>View My Bookings</a>
-          <a href="/discover" class="btn btn-secondary btn-lg" data-link>Explore More</a>
+          <a href="${H('/profile')}" class="btn btn-primary btn-lg" data-link>View My Bookings</a>
+          <a href="${H('/discover')}" class="btn btn-secondary btn-lg" data-link>Explore More</a>
         </div>
       </div>
     </div>
   `;
 }
 
-export function initBookingConfirmed() {
-  document.querySelectorAll('[data-link]').forEach(el => {
-    el.addEventListener('click', (e) => { e.preventDefault(); window.router.navigate(el.getAttribute('href')); });
-  });
-}
+export function initBookingConfirmed() {}

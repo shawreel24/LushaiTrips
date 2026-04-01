@@ -1,3 +1,19 @@
+// ── Base URL (Vite: '/' in dev, '/LushaiTravels/' on GitHub Pages) ─
+export function appHref(appPath) {
+  const path = appPath.startsWith('/') ? appPath : `/${appPath}`;
+  if (path === '/') return import.meta.env.BASE_URL;
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  return `${base}${path}`;
+}
+
+export function getRoutePathname(fullPathname) {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  if (!base) return fullPathname || '/';
+  if (fullPathname === base || fullPathname === `${base}/`) return '/';
+  if (fullPathname.startsWith(`${base}/`)) return fullPathname.slice(base.length) || '/';
+  return fullPathname || '/';
+}
+
 // ── Storage helpers ──────────────────────────────────────────────
 export const storage = {
   get: (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } },

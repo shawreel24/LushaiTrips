@@ -1,7 +1,8 @@
 import { destinations, categories } from '../data/destinations.js';
-import { starsHTML } from '../utils.js';
+import { starsHTML, appHref } from '../utils.js';
 
 export function renderHome() {
+  const H = appHref;
   const featured = destinations.slice(0, 6);
   return `
     <!-- Hero -->
@@ -15,8 +16,8 @@ export function renderHome() {
         <h1 class="hero-title">Explore <span class="gradient-text">Mizoram's</span><br>Hidden Gems</h1>
         <p class="hero-subtitle">Don't know where to go? Let the app decide. Discover waterfalls, mountain peaks, and secret lakes across the Lushai Hills.</p>
         <div class="hero-actions">
-          <a href="/surprise" class="btn btn-amber btn-lg" data-link>🎲 Surprise Me</a>
-          <a href="/discover" class="btn btn-secondary btn-lg" data-link>Explore Destinations</a>
+          <a href="${H('/surprise')}" class="btn btn-amber btn-lg" data-link>🎲 Surprise Me</a>
+          <a href="${H('/discover')}" class="btn btn-secondary btn-lg" data-link>Explore Destinations</a>
         </div>
         <div class="hero-stats">
           <div class="stat-item"><div class="stat-num">50+</div><div class="stat-label">Destinations</div></div>
@@ -34,7 +35,7 @@ export function renderHome() {
         <div class="section-label">✨ Our Unique Feature</div>
         <h2 style="margin-bottom:12px">Don't Plan. Just Go.</h2>
         <p style="max-width:500px;margin:0 auto 32px">One tap — get a destination, itinerary, and stay suggestion instantly.</p>
-        <a href="/surprise" class="btn btn-primary btn-lg" data-link>🎲 Try Surprise Me</a>
+        <a href="${H('/surprise')}" class="btn btn-primary btn-lg" data-link>🎲 Try Surprise Me</a>
       </div>
     </section>
 
@@ -44,7 +45,7 @@ export function renderHome() {
         <div class="section-label">🗺️ Top Picks</div>
         <div class="flex-between" style="margin-bottom:40px;flex-wrap:wrap;gap:16px">
           <h2 class="section-title" style="margin:0">Featured Destinations</h2>
-          <a href="/discover" class="btn btn-outline" data-link>View All →</a>
+          <a href="${H('/discover')}" class="btn btn-outline" data-link>View All →</a>
         </div>
         <div class="grid-3">
           ${featured.map(d => `
@@ -96,7 +97,7 @@ export function renderHome() {
         <div class="section-label">🏡 Top Rated</div>
         <div class="flex-between" style="margin-bottom:40px;flex-wrap:wrap;gap:16px">
           <h2 style="margin:0">Loved by Travelers</h2>
-          <a href="/stays" class="btn btn-outline" data-link>All Stays →</a>
+          <a href="${H('/stays')}" class="btn btn-outline" data-link>All Stays →</a>
         </div>
         <div class="grid-3" id="home-stays-grid"></div>
       </div>
@@ -113,7 +114,7 @@ export function renderHome() {
             { icon:'🚗', title:'Transport', desc:'Cars, bikes & more', href:'/transport' },
             { icon:'⭐', title:'Reviews', desc:'Real verified stays', href:'/stays' },
           ].map(s => `
-            <a href="${s.href}" class="card card-body text-center" data-link style="cursor:pointer">
+            <a href="${H(s.href)}" class="card card-body text-center" data-link style="cursor:pointer">
               <div style="font-size:2.5rem;margin-bottom:12px">${s.icon}</div>
               <h4 style="margin-bottom:6px">${s.title}</h4>
               <p style="font-size:0.85rem">${s.desc}</p>
@@ -129,9 +130,9 @@ export function renderHome() {
         <h2 style="margin-bottom:16px">Have a Stay or Service to List?</h2>
         <p style="margin-bottom:32px;max-width:500px;margin-left:auto;margin-right:auto">Join our curated network of Mizoram hosts. List your homestay, guide service, or transport.</p>
         <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
-          <a href="/host-signup-stay" class="btn btn-primary btn-lg" data-link>🏡 List Your Stay</a>
-          <a href="/host-signup-guide" class="btn btn-secondary btn-lg" data-link>👨‍🏫 Become a Guide</a>
-          <a href="/host-signup-transport" class="btn btn-secondary btn-lg" data-link>🚗 List Transport</a>
+          <a href="${H('/host-signup-stay')}" class="btn btn-primary btn-lg" data-link>🏡 List Your Stay</a>
+          <a href="${H('/host-signup-guide')}" class="btn btn-secondary btn-lg" data-link>👨‍🏫 Become a Guide</a>
+          <a href="${H('/host-signup-transport')}" class="btn btn-secondary btn-lg" data-link>🚗 List Transport</a>
         </div>
       </div>
     </section>

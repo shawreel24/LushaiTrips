@@ -1,7 +1,8 @@
 import { transport } from '../data/services.js';
-import { starsHTML } from '../utils.js';
+import { starsHTML, appHref } from '../utils.js';
 
 export function renderTransport() {
+  const H = appHref;
   return `
     <section class="page-hero">
       <div class="container">
@@ -17,7 +18,7 @@ export function renderTransport() {
           <div style="font-size:2.5rem;margin-bottom:16px">🚌</div>
           <h2 style="margin-bottom:12px">Have a Vehicle to List?</h2>
           <p style="max-width:480px;margin:0 auto 28px">Join our transport network and earn by connecting travellers with reliable rides across Mizoram.</p>
-          <a href="/host-signup-transport" class="btn btn-primary btn-lg" data-link>List Your Transport</a>
+          <a href="${H('/host-signup-transport')}" class="btn btn-primary btn-lg" data-link>List Your Transport</a>
         </div>
       </div>
     </section>

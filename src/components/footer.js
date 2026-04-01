@@ -1,5 +1,8 @@
+import { appHref } from '../utils.js';
+
 export function renderFooter() {
   const container = document.getElementById('footer-container');
+  const H = appHref;
   container.innerHTML = `
     <footer id="footer">
       <div class="container">
@@ -15,18 +18,18 @@ export function renderFooter() {
           </div>
           <div>
             <div class="footer-heading">Explore</div>
-            <a href="/discover" class="footer-link" data-link>All Destinations</a>
-            <a href="/stays" class="footer-link" data-link>Homestays & Hotels</a>
-            <a href="/guides" class="footer-link" data-link>Local Guides</a>
-            <a href="/transport" class="footer-link" data-link>Transport</a>
-            <a href="/surprise" class="footer-link" data-link>🎲 Surprise Me</a>
+            <a href="${H('/discover')}" class="footer-link" data-link>All Destinations</a>
+            <a href="${H('/stays')}" class="footer-link" data-link>Homestays & Hotels</a>
+            <a href="${H('/guides')}" class="footer-link" data-link>Local Guides</a>
+            <a href="${H('/transport')}" class="footer-link" data-link>Transport</a>
+            <a href="${H('/surprise')}" class="footer-link" data-link>🎲 Surprise Me</a>
           </div>
           <div>
             <div class="footer-heading">Host</div>
-            <a href="/host-signup-stay" class="footer-link" data-link>List Your Stay</a>
-            <a href="/host-signup-guide" class="footer-link" data-link>Register as Guide</a>
-            <a href="/host-signup-transport" class="footer-link" data-link>List Transport</a>
-            <a href="/host-dashboard" class="footer-link" data-link>Host Dashboard</a>
+            <a href="${H('/host-signup-stay')}" class="footer-link" data-link>List Your Stay</a>
+            <a href="${H('/host-signup-guide')}" class="footer-link" data-link>Register as Guide</a>
+            <a href="${H('/host-signup-transport')}" class="footer-link" data-link>List Transport</a>
+            <a href="${H('/host-dashboard')}" class="footer-link" data-link>Host Dashboard</a>
           </div>
           <div>
             <div class="footer-heading">Company</div>

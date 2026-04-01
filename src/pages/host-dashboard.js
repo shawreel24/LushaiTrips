@@ -1,9 +1,10 @@
-import { getCurrentUser, storage, showToast } from '../utils.js';
+import { getCurrentUser, storage, showToast, appHref } from '../utils.js';
 
 export function renderHostDashboard() {
+  const H = appHref;
   const user = getCurrentUser();
-  if (!user) return `<div class="page-hero container"><h1>Please <a href="/login" data-link style="color:var(--emerald-400)">log in</a></h1></div>`;
-  if (user.role !== 'host') return `<div class="page-hero container"><h1>Host access only. <a href="/host-signup-stay" data-link style="color:var(--emerald-400)">Become a Host →</a></h1></div>`;
+  if (!user) return `<div class="page-hero container"><h1>Please <a href="${H('/login')}" data-link style="color:var(--emerald-400)">log in</a></h1></div>`;
+  if (user.role !== 'host') return `<div class="page-hero container"><h1>Host access only. <a href="${H('/host-signup-stay')}" data-link style="color:var(--emerald-400)">Become a Host →</a></h1></div>`;
 
   const listings = (storage.get('lt_listings') || []).filter(l => l.hostId === user.id);
   const bookings = (storage.get('lt_bookings') || []).filter(b => listings.some(l => l.id === b.listingId));
@@ -105,7 +106,7 @@ export function renderHostDashboard() {
               { icon:'🧭', title:'Register as Guide', desc:'Offer trekking, wildlife, or cultural tour services', href:'/host-signup-guide' },
               { icon:'🚗', title:'List Transport', desc:'Cars, bikes, SUVs, shared Sumo or vans', href:'/host-signup-transport' },
             ].map(item => `
-              <a href="${item.href}" class="card card-body text-center" data-link style="cursor:pointer">
+              <a href="${H(item.href)}" class="card card-body text-center" data-link style="cursor:pointer">
                 <div style="font-size:3rem;margin-bottom:16px">${item.icon}</div>
                 <h4 style="margin-bottom:8px">${item.title}</h4>
                 <p style="font-size:0.9rem;margin-bottom:20px">${item.desc}</p>
@@ -129,5 +130,4 @@ export function initHostDashboard() {
       document.getElementById(`tab-${btn.dataset.tab}`)?.classList.remove('hidden');
     });
   });
-  document.querySelectorAll('[data-link]').forEach(el => el.addEventListener('click', (e) => { e.preventDefault(); window.router.navigate(el.getAttribute('href')); }));
 }
