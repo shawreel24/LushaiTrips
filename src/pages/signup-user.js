@@ -1,4 +1,5 @@
-import { registerUser, showToast, appHref } from '../utils.js';
+import { registerUser, showToast, appHref, setCurrentUser } from '../utils.js';
+import { supabase } from '../lib/supabase.js';
 
 export function renderSignupUser() {
   return `
@@ -54,7 +55,7 @@ export function renderSignupUser() {
 }
 
 export function initSignupUser() {
-  document.getElementById('signup-btn')?.addEventListener('click', () => {
+  document.getElementById('signup-btn')?.addEventListener('click', async () => {
     const fullName = document.getElementById('su-name')?.value?.trim();
     const email = document.getElementById('su-email')?.value?.trim();
     const phone = document.getElementById('su-phone')?.value?.trim();
@@ -63,14 +64,56 @@ export function initSignupUser() {
     if (!fullName || !email || !phone || !password) { showToast('Please fill all fields', '', 'error'); return; }
     if (password !== confirm) { showToast('Passwords do not match', '', 'error'); return; }
     if (password.length < 8) { showToast('Password must be at least 8 characters', '', 'error'); return; }
+    
+    const btn = document.getElementById('signup-btn');
+    const ogText = btn.innerHTML;
+    btn.innerHTML = 'Creating account...';
+    btn.disabled = true;
+
     try {
-      registerUser({ fullName, email, phone, password });
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            phone: phone,
+            role: 'user'
+          }
+        }
+      });
+      
+      if (error) throw error;
+      
+      if (data.user) {
+        setCurrentUser({
+          id: data.user.id,
+          email: data.user.email,
+          role: 'user',
+          avatar: fullName.charAt(0).toUpperCase()
+        });
+      }
+
       showToast('Account created! Welcome 🎉');
       setTimeout(() => window.router.navigate('/discover'), 600);
     } catch (e) {
       showToast(e.message, '', 'error');
+      btn.innerHTML = ogText;
+      btn.disabled = false;
     }
   });
-  document.getElementById('google-signup-btn')?.addEventListener('click', () => showToast('Google signup coming soon!'));
+  document.getElementById('google-signup-btn')?.addEventListener('click', async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + import.meta.env.BASE_URL
+        }
+      });
+      if (error) throw error;
+    } catch (e) {
+      showToast('Error connecting to Google', e.message, 'error');
+    }
+  });
   document.getElementById('phone-signup-btn')?.addEventListener('click', () => showToast('OTP signup coming soon!'));
 }

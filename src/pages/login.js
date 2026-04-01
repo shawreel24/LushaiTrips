@@ -1,4 +1,5 @@
-import { loginUser, showToast, appHref } from '../utils.js';
+import { loginUser, showToast, appHref, setCurrentUser } from '../utils.js';
+import { supabase } from '../lib/supabase.js';
 
 export function renderLogin() {
   return `
@@ -38,16 +39,39 @@ export function renderLogin() {
 }
 
 export function initLogin() {
-  document.getElementById('login-btn')?.addEventListener('click', () => {
+  document.getElementById('login-btn')?.addEventListener('click', async () => {
     const email = document.getElementById('login-email')?.value?.trim();
     const password = document.getElementById('login-password')?.value;
     if (!email || !password) { showToast('Please fill all fields', '', 'error'); return; }
+    
+    // UI Loading state
+    const btn = document.getElementById('login-btn');
+    const ogText = btn.innerHTML;
+    btn.innerHTML = 'Logging in...';
+    btn.disabled = true;
+
     try {
-      loginUser(email, password);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      // Ensure we set local storage so synchronous layout functions still work
+      setCurrentUser({
+        id: data.user.id,
+        email: data.user.email,
+        role: data.user.user_metadata?.role || 'user',
+        avatar: data.user.user_metadata?.avatar_url || data.user.user_metadata?.full_name?.charAt(0) || 'U'
+      });
+      
       showToast('Welcome back! 👋');
       setTimeout(() => window.router.navigate('/'), 500);
     } catch (e) {
       showToast(e.message, '', 'error');
+      btn.innerHTML = ogText;
+      btn.disabled = false;
     }
   });
 
@@ -55,7 +79,17 @@ export function initLogin() {
     if (e.key === 'Enter') document.getElementById('login-btn')?.click();
   });
 
-  document.getElementById('google-btn')?.addEventListener('click', () => {
-    showToast('Google login coming soon!', 'Use email login for now.');
+  document.getElementById('google-btn')?.addEventListener('click', async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + import.meta.env.BASE_URL
+        }
+      });
+      if (error) throw error;
+    } catch (e) {
+      showToast('Error connecting to Google', e.message, 'error');
+    }
   });
 }
