@@ -159,14 +159,21 @@ export function initBooking(id, params) {
       return;
     }
 
+    // Enforce minimum amount (Razorpay minimum is ₹1 = 100 paise)
+    const safeTotal = Math.max(total, 100); // ensure at least ₹100
+    if (total < 1) {
+      showToast('Invalid amount', 'Booking amount must be at least ₹1', 'error');
+      return;
+    }
+
     // Real Razorpay
     const options = {
       key: RAZORPAY_KEY,
-      amount: total * 100, // paise
+      amount: safeTotal * 100, // paise (e.g. ₹500 → 50000 paise)
       currency: 'INR',
       name: 'LushaiTrips',
       description: stay?.name || bookingName,
-      image: 'https://via.placeholder.com/100x100/065f46/ffffff?text=LT',
+      image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=100&q=80',
       prefill: { name, email, contact: phone },
       theme: { color: '#059669' },
       handler: function(response) {
@@ -174,13 +181,24 @@ export function initBooking(id, params) {
         showToast('Payment Successful! 🎉', `Ref: ${booking.id}`);
         setTimeout(() => window.router.navigate('/booking-confirmed'), 800);
       },
-      modal: { ondismiss: () => showToast('Payment cancelled', '', 'error') },
+      modal: {
+        ondismiss: () => showToast('Payment cancelled', 'You closed the payment window', 'error'),
+        escape: true,
+        animation: true,
+      },
     };
     try {
       const rzp = new Razorpay(options);
+      rzp.on('payment.failed', function(response) {
+        const reason = response.error?.description || response.error?.reason || 'Unknown error';
+        const code = response.error?.code || '';
+        showToast('Payment Failed ❌', `${reason}${code ? ' (' + code + ')' : ''}`, 'error');
+        console.error('Razorpay payment failed:', response.error);
+      });
       rzp.open();
     } catch (e) {
-      showToast('Razorpay not loaded', 'Please check your internet connection', 'error');
+      console.error('Razorpay init error:', e);
+      showToast('Razorpay not loaded', 'Please check your internet connection and try again', 'error');
     }
   });
 }
