@@ -17,8 +17,7 @@ import { renderHostSignupGuide, initHostSignupGuide } from './pages/host-signup-
 import { renderHostSignupTransport, initHostSignupTransport } from './pages/host-signup-transport.js';
 import { renderProfile, initProfile } from './pages/profile.js';
 import { renderHostDashboard, initHostDashboard } from './pages/host-dashboard.js';
-import { scrollTop, appHref, getRoutePathname, setCurrentUser, logout, storage } from './utils.js';
-import { supabase } from './lib/supabase.js';
+import { scrollTop, appHref, getRoutePathname } from './utils.js';
 
 // ── Router ─────────────────────────────────────────────────────────────────
 const routes = {
@@ -149,24 +148,5 @@ window.addEventListener('popstate', () => {
   render(getRoutePathname(location.pathname), new URLSearchParams(location.search));
 });
 
-// Boot and setup Auth Listener
-supabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-    if (session?.user) {
-      setCurrentUser({
-        id: session.user.id,
-        email: session.user.email,
-        role: session.user.user_metadata?.role || 'user',
-        avatar: session.user.user_metadata?.avatar_url || session.user.user_metadata?.full_name?.charAt(0) || 'U',
-        name: session.user.user_metadata?.full_name || 'Traveller'
-      });
-      // Re-render navbar to update avatar instantly if on same page
-      renderNavbar();
-    }
-  } else if (event === 'SIGNED_OUT') {
-    storage.remove('lt_user');
-    renderNavbar();
-  }
-});
-
+// Boot
 render(getRoutePathname(location.pathname), new URLSearchParams(location.search));

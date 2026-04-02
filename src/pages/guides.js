@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase.js';
+import { guides } from '../data/services.js';
 import { starsHTML, appHref } from '../utils.js';
 
 export function renderGuides() {
@@ -13,7 +13,7 @@ export function renderGuides() {
     </section>
     <section class="section">
       <div class="container">
-        <div class="grid-3" id="guides-grid"><div style="grid-column:1/-1;text-align:center;padding:40px">Loading guides...</div></div>
+        <div class="grid-3" id="guides-grid"></div>
         <div style="margin-top:60px;background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(245,158,11,0.05));border:1px solid rgba(16,185,129,0.2);border-radius:var(--radius-xl);padding:48px;text-align:center">
           <div style="font-size:2.5rem;margin-bottom:16px">🧭</div>
           <h2 style="margin-bottom:12px">Are You a Local Expert?</h2>
@@ -25,28 +25,9 @@ export function renderGuides() {
   `;
 }
 
-export async function initGuides() {
+export function initGuides() {
   const grid = document.getElementById('guides-grid');
   if (!grid) return;
-
-  if (!window.lt_guides_cache) {
-    try {
-      const { data, error } = await supabase.from('guides').select('*').eq('status', 'active');
-      if (error) throw error;
-      window.lt_guides_cache = data || [];
-    } catch (err) {
-      console.error('Error fetching guides:', err);
-      window.lt_guides_cache = [];
-    }
-  }
-
-  const guides = window.lt_guides_cache || [];
-  
-  if (guides.length === 0) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">No guides found.</div>';
-    return;
-  }
-
   grid.innerHTML = guides.map(g => `
     <div class="card" data-href="/guide/${g.id}" style="cursor:pointer">
       <div class="card-img-wrap" style="height:240px">
@@ -59,42 +40,25 @@ export async function initGuides() {
         <div style="font-size:0.85rem;color:var(--emerald-400);font-weight:600;margin-bottom:6px">${g.title}</div>
         <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px">📍 ${g.location} &nbsp;•&nbsp; 🗓 ${g.experience}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-          ${(g.languages || []).map(l => `<span class="tag" style="font-size:0.72rem">🗣 ${l}</span>`).join('')}
+          ${g.languages.map(l => `<span class="tag" style="font-size:0.72rem">🗣 ${l}</span>`).join('')}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-          ${(g.specialties || []).slice(0,2).map(s => `<span class="tag">${s}</span>`).join('')}
+          ${g.specialties.slice(0,2).map(s => `<span class="tag">${s}</span>`).join('')}
         </div>
         <div class="flex-between">
-          <span class="price" style="font-size:1.1rem">₹${g.price?.toLocaleString()}<span>/${g.priceUnit?.split(' ')[1] || 'day'}</span></span>
+          <span class="price" style="font-size:1.1rem">₹${g.price.toLocaleString()}<span>/${g.priceUnit.split(' ')[1]}</span></span>
           <span class="btn btn-outline btn-sm">View & Book</span>
         </div>
       </div>
     </div>
   `).join('');
-  
   grid.querySelectorAll('[data-href]').forEach(el => el.addEventListener('click', () => window.router.navigate(el.dataset.href)));
 }
 
 export function renderGuideDetail(id) {
-  return `<div id="guide-detail-container" style="padding-top:76px;min-height:80vh;display:flex;align-items:center;justify-content:center"><div class="spinner" style="font-size:1.5rem">Loading...</div></div>`;
-}
-
-export async function initGuideDetail(id) {
-  const container = document.getElementById('guide-detail-container');
-  if (!container) return;
-  
-  let g = window.lt_guides_cache?.find(guide => guide.id === id);
-  if (!g) {
-    const { data } = await supabase.from('guides').select('*').eq('id', id).single();
-    g = data;
-  }
-  
-  if (!g) { 
-    container.innerHTML = `<div class="page-hero container"><h1>Guide not found</h1></div>`; 
-    return; 
-  }
-
-  container.innerHTML = `
+  const g = guides.find(g => g.id === id);
+  if (!g) return `<div class="page-hero container"><h1>Guide not found</h1></div>`;
+  return `
     <div style="padding-top:76px">
       <div class="container" style="margin-top:24px">
         <div class="detail-layout">
@@ -113,30 +77,30 @@ export async function initGuideDetail(id) {
             <p style="margin-bottom:24px">${g.bio}</p>
             <h3 style="margin-bottom:16px">🎯 Specialties</h3>
             <div class="amenities-grid" style="margin-bottom:28px">
-              ${(g.specialties || []).map(s => `<div class="amenity-item"><span class="amenity-icon">🏔</span><span class="amenity-label">${s}</span></div>`).join('')}
+              ${g.specialties.map(s => `<div class="amenity-item"><span class="amenity-icon">🏔</span><span class="amenity-label">${s}</span></div>`).join('')}
             </div>
             <h3 style="margin-bottom:16px">🗣 Languages</h3>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px">
-              ${(g.languages || []).map(l => `<span class="tag">${l}</span>`).join('')}
+              ${g.languages.map(l => `<span class="tag">${l}</span>`).join('')}
             </div>
             <h3 style="margin-bottom:16px">📜 Certifications</h3>
             <div style="margin-bottom:32px">
-              ${(g.certifications || []).map(c => `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--glass-border)"><span style="color:var(--emerald-400)">✅</span><span style="font-size:0.9rem;color:var(--text-muted)">${c}</span></div>`).join('')}
+              ${g.certifications.map(c => `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--glass-border)"><span style="color:var(--emerald-400)">✅</span><span style="font-size:0.9rem;color:var(--text-muted)">${c}</span></div>`).join('')}
             </div>
             <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--radius);padding:24px">
               <h4 style="margin-bottom:16px">📸 Gallery</h4>
               <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-                ${(g.images || []).slice(1).map((img,i) => `<img src="${img}" alt="${g.name} ${i+2}" style="width:100%;height:130px;object-fit:cover;border-radius:var(--radius-sm)" />`).join('')}
+                ${g.images.slice(1).map((img,i) => `<img src="${img}" alt="${g.name} ${i+2}" style="width:100%;height:130px;object-fit:cover;border-radius:var(--radius-sm)" />`).join('')}
               </div>
             </div>
           </div>
           <div>
             <div class="booking-widget">
-              <div class="booking-price"><span class="price" style="font-size:1.6rem">₹${g.price?.toLocaleString()}</span><span style="color:var(--text-muted)">/${g.priceUnit}</span></div>
+              <div class="booking-price"><span class="price" style="font-size:1.6rem">₹${g.price.toLocaleString()}</span><span style="color:var(--text-muted)">/${g.priceUnit}</span></div>
               <div class="form-group mt-16"><label class="form-label">Select Date</label><input type="date" class="form-input" id="guide-date" /></div>
               <div class="form-group"><label class="form-label">Trip Type</label>
                 <select class="form-select" id="guide-trip">
-                  ${(g.specialties || []).map(s => `<option>${s}</option>`).join('')}
+                  ${g.specialties.map(s => `<option>${s}</option>`).join('')}
                 </select>
               </div>
               <div class="form-group"><label class="form-label">Group Size</label>
@@ -155,12 +119,14 @@ export async function initGuideDetail(id) {
       </div>
     </div>
   `;
-  container.style.display = 'block';
+}
 
+export function initGuideDetail(id) {
+  const g = guides.find(g => g.id === id);
+  if (!g) return;
   const today = new Date().toISOString().split('T')[0];
   const dateEl = document.getElementById('guide-date');
   if (dateEl) dateEl.value = today;
-  
   document.getElementById('book-guide-btn')?.addEventListener('click', () => {
     const date = document.getElementById('guide-date')?.value;
     const total = g.price;

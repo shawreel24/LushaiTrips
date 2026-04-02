@@ -1,6 +1,5 @@
 import { destinations, categories } from '../data/destinations.js';
 import { starsHTML, appHref } from '../utils.js';
-import { supabase } from '../lib/supabase.js';
 
 export function renderHome() {
   const H = appHref;
@@ -141,35 +140,15 @@ export function renderHome() {
 }
 
 export function initHome() {
-  // Set hero background using BASE_URL so it works on GitHub Pages subpath
-  const heroBg = document.querySelector('.hero-bg');
-  if (heroBg) {
-    const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-    heroBg.style.backgroundImage = `url('${base}/images/digilife-siaha-2cM78THYc4w-unsplash.jpg')`;
-  }
-
   // Clickable cards
   document.querySelectorAll('[data-href]').forEach(card => {
     card.addEventListener('click', () => window.router.navigate(card.dataset.href));
   });
 
   // Load stays preview
-  const fetchStays = async () => {
+  import('../data/stays.js').then(({ stays }) => {
     const grid = document.getElementById('home-stays-grid');
     if (!grid) return;
-    
-    let stays = window.lt_stays_cache;
-    if (!stays) {
-      try {
-        const { data } = await supabase.from('stays').select('*').eq('status', 'active');
-        stays = data || [];
-        window.lt_stays_cache = stays;
-      } catch (err) {
-        console.error(err);
-        stays = [];
-      }
-    }
-    
     grid.innerHTML = stays.slice(0, 3).map(s => `
       <div class="card stay-card animate-in" data-href="/stay/${s.id}">
         <div class="card-img-wrap">
@@ -188,10 +167,8 @@ export function initHome() {
         </div>
       </div>
     `).join('');
-    
     document.querySelectorAll('.stay-card[data-href]').forEach(card => {
       card.addEventListener('click', () => window.router.navigate(card.dataset.href));
     });
-  };
-  fetchStays();
+  });
 }

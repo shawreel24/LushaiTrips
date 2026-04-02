@@ -1,18 +1,14 @@
-import { supabase } from '../lib/supabase.js';
+import { stays } from '../data/stays.js';
 import { getReviews, addReview, starsHTML, calcAvgRating, isLoggedIn, getCurrentUser, showToast, isWishlisted, toggleWishlist } from '../utils.js';
 
 export function renderStayDetail(id) {
   return `<div id="stay-detail-container" style="padding-top:76px;min-height:80vh;display:flex;align-items:center;justify-content:center"><div class="spinner" style="font-size:1.5rem">Loading...</div></div>`;
 }
 
-export async function initStayDetail(id) {
+export function initStayDetail(id) {
   const container = document.getElementById('stay-detail-container');
   
-  let stay = window.lt_stays_cache?.find(s => s.id === id);
-  if (!stay) {
-    const { data } = await supabase.from('stays').select('*').eq('id', id).single();
-    stay = data;
-  }
+  const stay = stays.find(s => s.id === id);
   
   if (!stay) { 
     container.innerHTML = `<div class="page-hero container"><h1>Stay not found</h1></div>`; 

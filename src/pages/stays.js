@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase.js';
+import { stays } from '../data/stays.js';
 import { starsHTML } from '../utils.js';
 
 export function renderStays() {
@@ -21,23 +21,11 @@ export function renderStays() {
   `;
 }
 
-export async function initStays() {
+export function initStays() {
   let activeType = 'all';
   
-  // Fetch from Supabase
-  if (!window.lt_stays_cache) {
-    document.getElementById('stays-grid').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px">Loading stays...</div>';
-    try {
-      const { data, error } = await supabase.from('stays').select('*').eq('status', 'active');
-      if (error) throw error;
-      window.lt_stays_cache = data || [];
-    } catch (err) {
-      console.error('Error fetching stays:', err);
-      window.lt_stays_cache = [];
-    }
-  }
   const render = () => {
-    const filtered = activeType === 'all' ? window.lt_stays_cache || [] : (window.lt_stays_cache || []).filter(s => s.type.toLowerCase() === activeType);
+    const filtered = activeType === 'all' ? stays : stays.filter(s => s.type.toLowerCase() === activeType);
     document.getElementById('stays-grid').innerHTML = filtered.length ? filtered.map(stayCard).join('') : '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">No stays found.</div>';
     document.querySelectorAll('[data-href]').forEach(el => el.addEventListener('click', () => window.router.navigate(el.dataset.href)));
   };

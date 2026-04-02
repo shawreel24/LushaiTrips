@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase.js';
+import { transport } from '../data/services.js';
 import { starsHTML, appHref } from '../utils.js';
 
 export function renderTransport() {
@@ -13,7 +13,7 @@ export function renderTransport() {
     </section>
     <section class="section">
       <div class="container">
-        <div class="grid-3" id="transport-grid"><div style="grid-column:1/-1;text-align:center;padding:40px">Loading transport...</div></div>
+        <div class="grid-3" id="transport-grid"></div>
         <div style="margin-top:60px;background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(245,158,11,0.05));border:1px solid rgba(16,185,129,0.2);border-radius:var(--radius-xl);padding:48px;text-align:center">
           <div style="font-size:2.5rem;margin-bottom:16px">🚌</div>
           <h2 style="margin-bottom:12px">Have a Vehicle to List?</h2>
@@ -25,77 +25,41 @@ export function renderTransport() {
   `;
 }
 
-export async function initTransport() {
+export function initTransport() {
   const grid = document.getElementById('transport-grid');
   if (!grid) return;
-
-  if (!window.lt_trans_cache) {
-    try {
-      const { data, error } = await supabase.from('transport').select('*').eq('status', 'active');
-      if (error) throw error;
-      window.lt_trans_cache = data || [];
-    } catch (err) {
-      console.error('Error fetching transport:', err);
-      window.lt_trans_cache = [];
-    }
-  }
-
-  const transport = window.lt_trans_cache || [];
-  
-  if (transport.length === 0) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">No transport found.</div>';
-    return;
-  }
-
   grid.innerHTML = transport.map(t => `
     <div class="card" data-href="/transport/${t.id}" style="cursor:pointer">
       <div class="card-img-wrap">
         <img src="${t.coverImage}" alt="${t.name}" loading="lazy" />
-        <div class="card-badge">${t.type?.toUpperCase() || 'VEHICLE'}</div>
+        <div class="card-badge">${t.type.toUpperCase()}</div>
         <div class="card-rating">${starsHTML(t.rating)} <span>${t.rating} (${t.reviews})</span></div>
       </div>
       <div class="card-body">
         <h4 class="card-title">${t.name}</h4>
         <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px">👤 ${t.owner} &nbsp;•&nbsp; 📍 ${t.location}</div>
         <div style="margin-bottom:14px">
-          ${(t.vehicles || []).slice(0,2).map(v => `
+          ${t.vehicles.slice(0,2).map(v => `
             <div style="display:flex;justify-content:space-between;font-size:0.85rem;padding:6px 0;border-bottom:1px solid var(--glass-border)">
               <span style="color:var(--text-muted)">🚗 ${v.name}</span>
-              <span style="color:var(--emerald-400);font-weight:600">₹${v.price?.toLocaleString() || 0}</span>
+              <span style="color:var(--emerald-400);font-weight:600">₹${v.price.toLocaleString()}</span>
             </div>
           `).join('')}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-          ${(t.features || []).slice(0,3).map(f => `<span class="tag" style="font-size:0.72rem">${f}</span>`).join('')}
+          ${t.features.slice(0,3).map(f => `<span class="tag" style="font-size:0.72rem">${f}</span>`).join('')}
         </div>
         <span class="btn btn-outline btn-sm w-full" style="justify-content:center">View & Book</span>
       </div>
     </div>
   `).join('');
-  
   grid.querySelectorAll('[data-href]').forEach(el => el.addEventListener('click', () => window.router.navigate(el.dataset.href)));
 }
 
 export function renderTransportDetail(id) {
-  return `<div id="transport-detail-container" style="padding-top:76px;min-height:80vh;display:flex;align-items:center;justify-content:center"><div class="spinner" style="font-size:1.5rem">Loading...</div></div>`;
-}
-
-export async function initTransportDetail(id) {
-  const container = document.getElementById('transport-detail-container');
-  if (!container) return;
-  
-  let t = window.lt_trans_cache?.find(tran => tran.id === id);
-  if (!t) {
-    const { data } = await supabase.from('transport').select('*').eq('id', id).single();
-    t = data;
-  }
-  
-  if (!t) { 
-    container.innerHTML = `<div class="page-hero container"><h1>Transport not found</h1></div>`; 
-    return; 
-  }
-
-  container.innerHTML = `
+  const t = transport.find(t => t.id === id);
+  if (!t) return `<div class="page-hero container"><h1>Not found</h1></div>`;
+  return `
     <div style="padding-top:76px">
       <div class="container" style="margin-top:24px">
         <div class="detail-layout">
@@ -110,7 +74,7 @@ export async function initTransportDetail(id) {
             </div>
 
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px;border-radius:var(--radius);overflow:hidden">
-              ${(t.images || []).map((img,i) => `<img src="${img}" alt="${t.name}" style="width:100%;height:180px;object-fit:cover;${i===0?'grid-column:1/3;height:260px':''}" loading="lazy" />`).join('')}
+              ${t.images.map((img,i) => `<img src="${img}" alt="${t.name}" style="width:100%;height:180px;object-fit:cover;${i===0?'grid-column:1/3;height:260px':''}" loading="lazy" />`).join('')}
             </div>
 
             <h3 style="margin-bottom:12px">About this Service</h3>
@@ -118,7 +82,7 @@ export async function initTransportDetail(id) {
 
             <h3 style="margin-bottom:16px">🚗 Available Vehicles</h3>
             <div style="margin-bottom:32px">
-              ${(t.vehicles || []).map(v => `
+              ${t.vehicles.map(v => `
                 <div class="card card-body" style="margin-bottom:12px;padding:20px">
                   <div class="flex-between">
                     <div>
@@ -126,8 +90,8 @@ export async function initTransportDetail(id) {
                       <div style="font-size:0.85rem;color:var(--text-muted)">👥 Up to ${v.capacity} passengers</div>
                     </div>
                     <div style="text-align:right">
-                      <div class="price" style="font-size:1.1rem">₹${v.price?.toLocaleString() || 0}</div>
-                      <div style="font-size:0.8rem;color:var(--text-muted)">${v.priceUnit || 'day'}</div>
+                      <div class="price" style="font-size:1.1rem">₹${v.price.toLocaleString()}</div>
+                      <div style="font-size:0.8rem;color:var(--text-muted)">${v.priceUnit}</div>
                     </div>
                   </div>
                 </div>
@@ -136,7 +100,7 @@ export async function initTransportDetail(id) {
 
             <h3 style="margin-bottom:16px">✨ Features</h3>
             <div class="amenities-grid">
-              ${(t.features || []).map(f => `<div class="amenity-item"><span class="amenity-icon">✅</span><span class="amenity-label">${f}</span></div>`).join('')}
+              ${t.features.map(f => `<div class="amenity-item"><span class="amenity-icon">✅</span><span class="amenity-label">${f}</span></div>`).join('')}
             </div>
           </div>
           <div>
@@ -146,7 +110,7 @@ export async function initTransportDetail(id) {
               <div class="form-group">
                 <label class="form-label">Vehicle</label>
                 <select class="form-select" id="vehicle-select">
-                  ${(t.vehicles || []).map(v => `<option value="${v.price}">${v.name} — ₹${v.price?.toLocaleString()} ${v.priceUnit || 'day'}</option>`).join('')}
+                  ${t.vehicles.map(v => `<option value="${v.price}">${v.name} — ₹${v.price.toLocaleString()} ${v.priceUnit}</option>`).join('')}
                 </select>
               </div>
               <div class="form-group"><label class="form-label">Pickup Date</label><input type="date" class="form-input" id="pickup-date" /></div>
@@ -164,20 +128,19 @@ export async function initTransportDetail(id) {
       </div>
     </div>
   `;
-  container.style.display = 'block';
+}
 
+export function initTransportDetail(id) {
+  const t = transport.find(t => t.id === id);
+  if (!t) return;
   const today = new Date(); const tom = new Date(today); tom.setDate(tom.getDate() + 1);
   const toISO = d => d.toISOString().split('T')[0];
-  const pDateEl = document.getElementById('pickup-date');
-  const dDateEl = document.getElementById('dropoff-date');
-  
-  if (pDateEl) pDateEl.value = toISO(today);
-  if (dDateEl) dDateEl.value = toISO(tom);
-  
+  document.getElementById('pickup-date').value = toISO(today);
+  document.getElementById('dropoff-date').value = toISO(tom);
   const updateTotal = () => {
     const price = parseInt(document.getElementById('vehicle-select')?.value || 0);
-    const p = new Date(pDateEl?.value);
-    const d = new Date(dDateEl?.value);
+    const p = new Date(document.getElementById('pickup-date')?.value);
+    const d = new Date(document.getElementById('dropoff-date')?.value);
     const days = Math.max(1, Math.round((d-p)/86400000));
     const total = price * days;
     const el = document.getElementById('transport-total');
@@ -185,8 +148,7 @@ export async function initTransportDetail(id) {
     return total;
   };
   updateTotal();
-  ['vehicle-select','pickup-date','dropoff-date'].forEach(elemId => document.getElementById(elemId)?.addEventListener('change', updateTotal));
-  
+  ['vehicle-select','pickup-date','dropoff-date'].forEach(id => document.getElementById(id)?.addEventListener('change', updateTotal));
   document.getElementById('book-transport-btn')?.addEventListener('click', () => {
     const total = updateTotal();
     window.router.navigate(`/book/${id}?total=${total}&type=transport&name=${encodeURIComponent(t.name)}`);

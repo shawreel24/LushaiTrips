@@ -1,6 +1,4 @@
 // ── Base URL (Vite: '/' in dev, '/LushaiTravels/' on GitHub Pages) ─
-import { supabase } from './lib/supabase.js';
-
 export function appHref(appPath) {
   const path = appPath.startsWith('/') ? appPath : `/${appPath}`;
   if (path === '/') return import.meta.env.BASE_URL;
@@ -26,11 +24,7 @@ export const storage = {
 // ── Auth ─────────────────────────────────────────────────────────
 export function getCurrentUser() { return storage.get('lt_user'); }
 export function setCurrentUser(user) { storage.set('lt_user', user); }
-export async function logout() { 
-  storage.remove('lt_user'); 
-  await supabase.auth.signOut();
-  window.router.navigate('/'); 
-}
+export function logout() { storage.remove('lt_user'); window.router.navigate('/'); }
 export function isLoggedIn() { return !!getCurrentUser(); }
 export function isHost() { const u = getCurrentUser(); return u?.role === 'host'; }
 
