@@ -40,7 +40,11 @@ export function isLoggedIn() { return !!getCurrentUser(); }
 export function isHost()     { return getCurrentUser()?.role === 'host'; }
 
 export async function logout() {
-  await _signOut();
+  try {
+    await _signOut();
+  } catch (e) {
+    console.warn('[logout] Supabase signOut error (ignored):', e.message);
+  }
   localStorage.removeItem('sb_cached_user');
   window.router.navigate('/');
 }
