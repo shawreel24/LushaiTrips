@@ -7,7 +7,7 @@ export function renderTravelTips() {
     <section style="min-height:55vh;display:flex;align-items:center;background:linear-gradient(135deg,var(--bg1),var(--emerald-900) 50%,var(--bg2));padding:120px 0 80px;position:relative;overflow:hidden">
       <div style="position:absolute;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 50%,rgba(16,185,129,0.12),transparent);pointer-events:none"></div>
       <div class="container" style="position:relative;z-index:1">
-        <div class="section-label">🧭 Traveler's Guide</div>
+        <div class="section-label">&#x1F9ED; Traveler&apos;s Guide</div>
         <h1 style="font-size:clamp(2.2rem,6vw,4rem);font-weight:900;line-height:1.1;margin-bottom:24px">
           Travel Tips for <span class="gradient-text">Mizoram</span>
         </h1>
@@ -21,7 +21,14 @@ export function renderTravelTips() {
     <section style="background:var(--emerald-900);padding:24px 0;border-top:1px solid var(--glass-border);border-bottom:1px solid var(--glass-border)">
       <div class="container">
         <div style="display:flex;flex-wrap:wrap;gap:24px;justify-content:center">
-          ${['🌧️ Carry rain gear year-round','📵 Expect limited signal in remote areas','💵 Carry cash — ATMs are scarce outside Aizawl','🥾 Pack sturdy trekking shoes','🗣️ Learn a few Mizo words — locals love it!','🕊️ Sundays are quiet — most shops closed'].map(t => `
+          ${[
+            'Carry rain gear year-round',
+            'Expect limited signal in remote areas',
+            'Carry cash &mdash; ATMs are scarce outside Aizawl',
+            'Pack sturdy trekking shoes',
+            'Learn a few Mizo words &mdash; locals love it!',
+            'Sundays are quiet &mdash; most shops closed'
+          ].map(t => `
             <span style="font-size:0.88rem;color:var(--emerald-200);display:flex;align-items:center;gap:6px">${t}</span>
           `).join('')}
         </div>
@@ -31,14 +38,14 @@ export function renderTravelTips() {
     <!-- Best Time to Visit -->
     <section class="section">
       <div class="container">
-        <div class="section-label">📅 Planning Your Trip</div>
+        <div class="section-label">&#x1F4C5; Planning Your Trip</div>
         <h2 style="margin-bottom:40px">Best Time to Visit Mizoram</h2>
         <div class="grid-4">
           ${[
-            { season: 'October – February', icon: '❄️', label: 'Best Season', color: '#10b981', desc: 'Cool, clear skies. Perfect for trekking, sightseeing, and exploring all districts. Temperatures range from 11°C to 24°C.' },
-            { season: 'March – May', icon: '🌸', label: 'Good Season', color: '#f59e0b', desc: 'Lush and warm before the rains. Anthurium and cherry blossoms bloom. Slightly humid but still very pleasant.' },
-            { season: 'June – September', icon: '🌧️', label: 'Monsoon', color: '#6366f1', desc: 'Heavy rainfall makes roads slippery. Waterfalls are dramatic and forests are lush green. For adventurous souls only.' },
-            { season: 'Chapchar Kut (March)', icon: '🎉', label: 'Festival Season', color: '#ec4899', desc: 'Mizoram\'s biggest cultural festival. Traditional dances, food, and community celebrations across the state.' },
+            { season: 'October &ndash; February', icon: '&#x2744;&#xFE0F;', label: 'Best Season', color: '#10b981', desc: 'Cool, clear skies. Perfect for trekking, sightseeing, and exploring all districts. Temperatures range from 11&deg;C to 24&deg;C.' },
+            { season: 'March &ndash; May', icon: '&#x1F338;', label: 'Good Season', color: '#f59e0b', desc: 'Lush and warm before the rains. Anthurium and cherry blossoms bloom. Slightly humid but still very pleasant.' },
+            { season: 'June &ndash; September', icon: '&#x1F327;&#xFE0F;', label: 'Monsoon', color: '#6366f1', desc: 'Heavy rainfall makes roads slippery. Waterfalls are dramatic and forests are lush green. For adventurous souls only.' },
+            { season: 'Chapchar Kut (March)', icon: '&#x1F389;', label: 'Festival Season', color: '#ec4899', desc: 'Mizoram\'s biggest cultural festival. Traditional dances, food, and community celebrations across the state.' },
           ].map(s => `
             <div class="card card-body animate-in" style="border-top:3px solid ${s.color}">
               <div style="font-size:2.2rem;margin-bottom:12px">${s.icon}</div>
@@ -54,13 +61,13 @@ export function renderTravelTips() {
     <!-- Getting There -->
     <section class="section" style="background:var(--bg2)">
       <div class="container">
-        <div class="section-label">✈️ Getting There</div>
+        <div class="section-label">&#x2708;&#xFE0F; Getting There</div>
         <h2 style="margin-bottom:40px">How to Reach Mizoram</h2>
         <div class="grid-3">
           ${[
-            { icon: '✈️', title: 'By Air', desc: 'Lengpui Airport (AJL) near Aizawl has direct flights from Kolkata, Delhi, and Imphal via IndiGo, Air India, and SpiceJet. The airport is about 32km from the city centre.' },
-            { icon: '🚂', title: 'By Train', desc: 'Bairabi Railway Station (at the Assam-Mizoram border) is the closest railhead. From there, take a taxi or shared cab to Aizawl (~180km). Trains from Guwahati connect here.' },
-            { icon: '🚍', title: 'By Road', desc: 'Well-connected by NH-306 from Silchar, Assam. State buses and private taxis operate regularly from Silchar, Guwahati, and Shillong. Expect scenic mountain roads.' },
+            { icon: '&#x2708;&#xFE0F;', title: 'By Air', desc: 'Lengpui Airport (AJL) near Aizawl has direct flights from Kolkata, Delhi, and Imphal via IndiGo, Air India, and SpiceJet. The airport is about 32km from the city centre.' },
+            { icon: '&#x1F682;', title: 'By Train', desc: 'Bairabi Railway Station (at the Assam-Mizoram border) is the closest railhead. From there, take a taxi or shared cab to Aizawl (~180km). Trains from Guwahati connect here.' },
+            { icon: '&#x1F68D;', title: 'By Road', desc: 'Well-connected by NH-306 from Silchar, Assam. State buses and private taxis operate regularly from Silchar, Guwahati, and Shillong. Expect scenic mountain roads.' },
           ].map(t => `
             <div class="card card-body animate-in">
               <div style="font-size:2.5rem;margin-bottom:16px">${t.icon}</div>
@@ -77,7 +84,7 @@ export function renderTravelTips() {
       <div class="container">
         <div style="max-width:780px;margin:0 auto">
           <div style="display:flex;align-items:flex-start;gap:24px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius);padding:32px">
-            <div style="font-size:3rem;flex-shrink:0">📋</div>
+            <div style="font-size:3rem;flex-shrink:0">&#x1F4CB;</div>
             <div>
               <h3 style="margin-bottom:12px;color:var(--amber)">Inner Line Permit (ILP)</h3>
               <p style="color:var(--text-muted);line-height:1.8;margin-bottom:16px">
@@ -86,10 +93,10 @@ export function renderTravelTips() {
               <ul style="color:var(--text-muted);line-height:2;padding-left:20px;margin-bottom:16px">
                 <li>Apply online at <strong style="color:var(--text)">mizoram.gov.in</strong> or in person at Mizoram House offices in Delhi, Kolkata, Guwahati, or Silchar</li>
                 <li>Valid for 15 days (extendable up to 6 months)</li>
-                <li>Foreign nationals require a Protected Area Permit (PAP) — obtain from the Ministry of Home Affairs</li>
+                <li>Foreign nationals require a Protected Area Permit (PAP) &mdash; obtain from the Ministry of Home Affairs</li>
                 <li>Always carry printed copies plus national ID proof</li>
               </ul>
-              <a href="https://mizoram.gov.in" target="_blank" rel="noreferrer" class="btn btn-secondary btn-sm">🌐 Visit Official Site →</a>
+              <a href="https://mizoram.gov.in" target="_blank" rel="noreferrer" class="btn btn-secondary btn-sm">&#x1F310; Visit Official Site &rarr;</a>
             </div>
           </div>
         </div>
@@ -99,22 +106,22 @@ export function renderTravelTips() {
     <!-- Practical Tips -->
     <section class="section">
       <div class="container">
-        <div class="section-label">💡 Practical Essentials</div>
+        <div class="section-label">&#x1F4A1; Practical Essentials</div>
         <h2 style="margin-bottom:40px">Tips for a Smooth Trip</h2>
         <div class="grid-3">
           ${[
-            { icon: '💵', title: 'Money & ATMs', tips: ['Carry enough cash — many rural areas have no ATMs','SBI and Axis Bank ATMs in Aizawl are most reliable','UPI accepted at bigger hotels and restaurants','Inform your bank before travelling to avoid card blocks'] },
-            { icon: '📶', title: 'Connectivity', tips: ['Airtel and Jio have the best coverage in Mizoram','BSNL works in remote areas where others fail','Download offline maps (Maps.me or Google Maps offline)','Satellite rentals available for deep jungle treks'] },
-            { icon: '🍽️', title: 'Food & Drink', tips: ['Vawksa rep (smoked pork) is a must-try Mizo dish','Bai (leafy greens with soda) is a local staple','Most restaurants serve Mizo, Indian and Chinese food','Always drink boiled or bottled water outside towns'] },
-            { icon: '🏨', title: 'Accommodation', tips: ['Book at least a week in advance during Oct–Feb','Homestays offer the most authentic experience','Most stays include dinner and breakfast','LushaiTrips verified stays have 24h support'] },
-            { icon: '🕌', title: 'Culture & Customs', tips: ['Mizoram is predominantly Christian — dress modestly','Sundays are quiet — plan grocery shopping on Saturday','Photography in villages requires permission','Always ask before entering someone's home'] },
-            { icon: '🩺', title: 'Health & Meds', tips: ['Carry basic first-aid and personal medicines','Malaria prophylaxis advised for jungle stays','Altitude sickness unlikely but stay hydrated','Nearest good hospital is at Aizawl Civil Hospital'] },
+            { icon: '&#x1F4B5;', title: 'Money &amp; ATMs', tips: ['Carry enough cash &mdash; many rural areas have no ATMs','SBI and Axis Bank ATMs in Aizawl are most reliable','UPI accepted at bigger hotels and restaurants','Inform your bank before travelling to avoid card blocks'] },
+            { icon: '&#x1F4F6;', title: 'Connectivity', tips: ['Airtel and Jio have the best coverage in Mizoram','BSNL works in remote areas where others fail','Download offline maps (Maps.me or Google Maps offline)','Satellite rentals available for deep jungle treks'] },
+            { icon: '&#x1F37D;&#xFE0F;', title: 'Food &amp; Drink', tips: ['Vawksa rep (smoked pork) is a must-try Mizo dish','Bai (leafy greens with soda) is a local staple','Most restaurants serve Mizo, Indian and Chinese food','Always drink boiled or bottled water outside towns'] },
+            { icon: '&#x1F3E8;', title: 'Accommodation', tips: ['Book at least a week in advance during Oct&ndash;Feb','Homestays offer the most authentic experience','Most stays include dinner and breakfast','LushaiTrips verified stays have 24h support'] },
+            { icon: '&#x1F54C;', title: 'Culture &amp; Customs', tips: ['Mizoram is predominantly Christian &mdash; dress modestly','Sundays are quiet &mdash; plan grocery shopping on Saturday','Photography in villages requires permission','Always ask before entering someone\'s home'] },
+            { icon: '&#x1FA7A;', title: 'Health &amp; Meds', tips: ['Carry basic first-aid and personal medicines','Malaria prophylaxis advised for jungle stays','Altitude sickness unlikely but stay hydrated','Nearest good hospital is at Aizawl Civil Hospital'] },
           ].map(tip => `
             <div class="card card-body animate-in">
               <div style="font-size:2.2rem;margin-bottom:14px">${tip.icon}</div>
               <h4 style="margin-bottom:14px">${tip.title}</h4>
               <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">
-                ${tip.tips.map(t => `<li style="font-size:0.85rem;color:var(--text-muted);display:flex;gap:8px;line-height:1.5"><span style="color:var(--emerald-400);flex-shrink:0">✓</span>${t}</li>`).join('')}
+                ${tip.tips.map(t => `<li style="font-size:0.85rem;color:var(--text-muted);display:flex;gap:8px;line-height:1.5"><span style="color:var(--emerald-400);flex-shrink:0">&#x2713;</span>${t}</li>`).join('')}
               </ul>
             </div>
           `).join('')}
@@ -125,18 +132,18 @@ export function renderTravelTips() {
     <!-- Packing List -->
     <section class="section" style="background:var(--bg2)">
       <div class="container">
-        <div class="section-label">🎒 What to Pack</div>
+        <div class="section-label">&#x1F392; What to Pack</div>
         <h2 style="margin-bottom:40px">The Mizoram Packing Checklist</h2>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px">
           ${[
-            { category: '👕 Clothing', items: ['Light cotton clothes (Oct–May)','Warm layers & jacket (Nov–Feb)','Waterproof rain jacket','Comfortable trekking pants','Quick-dry towel'] },
-            { category: '👟 Footwear & Gear', items: ['Sturdy trekking shoes/boots','Flip-flops or sandals','Waterproof daypack','UV protection sunglasses','Trekking poles (optional)'] },
-            { category: '💊 Medical & Safety', items: ['Personal medications','ORS sachets (hydration)','Insect repellent (DEET)','Hand sanitizer','Small first-aid kit'] },
-            { category: '📱 Tech & Documents', items: ['Offline map downloaded','Portable charger (powerbank)','Indian ID proof','Printed ILP permit copy','Multi-plug adapter'] },
+            { category: '&#x1F455; Clothing', items: ['Light cotton clothes (Oct&ndash;May)','Warm layers &amp; jacket (Nov&ndash;Feb)','Waterproof rain jacket','Comfortable trekking pants','Quick-dry towel'] },
+            { category: '&#x1F45F; Footwear &amp; Gear', items: ['Sturdy trekking shoes/boots','Flip-flops or sandals','Waterproof daypack','UV protection sunglasses','Trekking poles (optional)'] },
+            { category: '&#x1F48A; Medical &amp; Safety', items: ['Personal medications','ORS sachets (hydration)','Insect repellent (DEET)','Hand sanitizer','Small first-aid kit'] },
+            { category: '&#x1F4F1; Tech &amp; Documents', items: ['Offline map downloaded','Portable charger (powerbank)','Indian ID proof','Printed ILP permit copy','Multi-plug adapter'] },
           ].map(cat => `
             <div class="card card-body">
               <div style="font-size:1rem;font-weight:700;color:var(--emerald-400);margin-bottom:14px">${cat.category}</div>
-              ${cat.items.map(i => `<div style="font-size:0.85rem;color:var(--text-muted);padding:6px 0;border-bottom:1px solid var(--glass-border);display:flex;gap:8px"><span>•</span>${i}</div>`).join('')}
+              ${cat.items.map(i => `<div style="font-size:0.85rem;color:var(--text-muted);padding:6px 0;border-bottom:1px solid var(--glass-border);display:flex;gap:8px"><span>&bull;</span>${i}</div>`).join('')}
             </div>
           `).join('')}
         </div>
@@ -148,10 +155,10 @@ export function renderTravelTips() {
       <div class="container text-center">
         <h2 style="margin-bottom:16px">All Set to Go?</h2>
         <p style="margin-bottom:32px;color:var(--text-muted);max-width:480px;margin-left:auto;margin-right:auto">
-          Explore Mizoram's best destinations, book your stay, hire a local guide — all in one place.
+          Explore Mizoram&apos;s best destinations, book your stay, hire a local guide &mdash; all in one place.
         </p>
         <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
-          <a href="${H('/surprise')}" class="btn btn-amber btn-lg" data-link>🎲 Surprise Me</a>
+          <a href="${H('/surprise')}" class="btn btn-amber btn-lg" data-link>&#x1F3B2; Surprise Me</a>
           <a href="${H('/discover')}" class="btn btn-secondary btn-lg" data-link>Explore Destinations</a>
         </div>
       </div>

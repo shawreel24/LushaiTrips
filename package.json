@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node -e \"require('fs').copyFileSync('docs/index.html','docs/404.html')\"",
+    "build": "vite build && node --input-type=commonjs -e \"require('fs').copyFileSync('docs/index.html','docs/404.html')\"",
     "preview": "vite preview"
   },
   "devDependencies": {
