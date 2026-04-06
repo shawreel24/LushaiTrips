@@ -79,6 +79,40 @@ export async function signOut() {
   if (error) console.warn('[signOut]', error.message);
 }
 
+/** Send a phone OTP via SMS. phone must be E.164 e.g. +919876543210 */
+export async function sendPhoneOtp(phone) {
+  const { error } = await supabase.auth.signInWithOtp({ phone });
+  if (error) throw error;
+}
+
+/**
+ * Verify the OTP received by SMS.
+ * Creates/signs-in the user and optionally upserts a profile row.
+ * @param {string} phone  - E.164 phone number
+ * @param {string} token  - 6-digit OTP
+ * @param {object} [profile] - optional { full_name } to store
+ */
+export async function verifyPhoneOtp(phone, token, profile = {}) {
+  const { data, error } = await supabase.auth.verifyOtp({
+    phone,
+    token,
+    type: 'sms',
+  });
+  if (error) throw error;
+
+  // Upsert profile row (creates it for new users, updates for returning)
+  const user = data?.user;
+  if (user) {
+    await supabase.from('profiles').upsert({
+      id:        user.id,
+      phone:     phone,
+      full_name: profile.full_name || user.user_metadata?.full_name || '',
+      role:      'user',
+    });
+  }
+  return data;
+}
+
 // ── Destinations ──────────────────────────────────────────────
 
 export async function fetchDestinations(category = 'all') {
