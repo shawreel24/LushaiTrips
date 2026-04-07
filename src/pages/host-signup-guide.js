@@ -1,7 +1,8 @@
-import { signUpEmail, insertGuide } from '../lib/supabase.js';
+import { signUpEmail, insertGuide, uploadImageToStorage } from '../lib/supabase.js';
 import { refreshUserCache, showToast } from '../utils.js';
 
-let uploadedImages = [];
+let uploadedImages = []; // base64 previews for display
+let uploadedFiles = [];  // original File objects for storage upload
 
 export function renderHostSignupGuide() {
   return `
@@ -96,8 +97,15 @@ export function renderHostSignupGuide() {
 
 export function initHostSignupGuide() {
   uploadedImages = [];
+  uploadedFiles = [];
+
   document.getElementById('g-photos')?.addEventListener('change', e => {
     [...e.target.files].forEach(file => {
+      // Keep the original file for upload
+      const fileIdx = uploadedFiles.length;
+      uploadedFiles.push(file);
+
+      // Generate a compressed preview for display only
       const reader = new FileReader();
       reader.onload = ev => {
         const img = new Image();
@@ -111,76 +119,112 @@ export function initHostSignupGuide() {
             width *= MAX_SIZE / height; height = MAX_SIZE;
           }
           canvas.width = width; canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-          
-          uploadedImages.push(dataUrl);
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          const previewUrl = canvas.toDataURL('image/jpeg', 0.7);
+
+          uploadedImages[fileIdx] = previewUrl;
+
           const wrap = document.createElement('div'); wrap.className = 'upload-img-wrap';
-          const idx = uploadedImages.length - 1;
-          wrap.innerHTML = `<img src="${dataUrl}" alt="upload" />${idx===0?'<div style="position:absolute;bottom:4px;left:4px;background:rgba(16,185,129,0.9);color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;font-weight:700">PROFILE</div>':''}<button class="remove-img">✕</button>`;
+          wrap.innerHTML = `<img src="${previewUrl}" alt="upload" />${fileIdx === 0 ? '<div style="position:absolute;bottom:4px;left:4px;background:rgba(16,185,129,0.9);color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;font-weight:700">PROFILE</div>' : ''}<button class="remove-img">✕</button>`;
           document.getElementById('g-photo-preview')?.appendChild(wrap);
-          wrap.querySelector('.remove-img')?.addEventListener('click', () => { uploadedImages.splice(idx,1); wrap.remove(); });
+          wrap.querySelector('.remove-img')?.addEventListener('click', () => {
+            uploadedImages.splice(fileIdx, 1, null);
+            uploadedFiles.splice(fileIdx, 1, null);
+            wrap.remove();
+          });
         };
         img.src = ev.target.result;
       };
       reader.readAsDataURL(file);
     });
   });
+
   document.getElementById('submit-guide-btn')?.addEventListener('click', async () => {
-    const name = document.getElementById('g-name')?.value?.trim();
-    const email = document.getElementById('g-email')?.value?.trim();
-    const phone = document.getElementById('g-phone')?.value?.trim();
-    const password = document.getElementById('g-password')?.value;
-    const title = document.getElementById('g-title')?.value?.trim();
-    const bio = document.getElementById('g-bio')?.value?.trim();
-    const price = document.getElementById('g-price')?.value;
-    const location = document.getElementById('g-location')?.value;
+    const name      = document.getElementById('g-name')?.value?.trim();
+    const email     = document.getElementById('g-email')?.value?.trim();
+    const phone     = document.getElementById('g-phone')?.value?.trim();
+    const password  = document.getElementById('g-password')?.value;
+    const title     = document.getElementById('g-title')?.value?.trim();
+    const bio       = document.getElementById('g-bio')?.value?.trim();
+    const price     = document.getElementById('g-price')?.value;
+    const location  = document.getElementById('g-location')?.value;
     const experience = document.getElementById('g-exp')?.value;
-    const languages = [...document.querySelectorAll('input[name="g-lang"]:checked')].map(el => el.value);
+    const languages  = [...document.querySelectorAll('input[name="g-lang"]:checked')].map(el => el.value);
     const specialties = [...document.querySelectorAll('input[name="g-spec"]:checked')].map(el => el.value);
-    const certs = document.getElementById('g-certs')?.value?.split('\n').filter(Boolean);
-    if (!name||!email||!phone||!password||!title||!bio||!price||!location||!experience||!languages.length||!specialties.length) { showToast('Please fill all required fields','','error'); return; }
+    const certs      = document.getElementById('g-certs')?.value?.split('\n').filter(Boolean);
+    const agree      = document.getElementById('g-agree')?.checked;
+
+    if (!name || !email || !phone || !password || !title || !bio || !price || !location || !experience || !languages.length || !specialties.length) {
+      showToast('Please fill all required fields', '', 'error'); return;
+    }
+    if (!agree) { showToast('Please agree to the Guide Terms', '', 'error'); return; }
+
+    const validFiles = uploadedFiles.filter(Boolean);
+    if (validFiles.length < 2) { showToast('Please upload at least 2 photos', '', 'error'); return; }
+
     const btn = document.getElementById('submit-guide-btn');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Submitting…'; }
+
     try {
-      // Create account only if not already logged in
       const { supabase } = await import('../lib/supabase.js');
+
+      // ── 1. Sign up / get session ───────────────────────────────
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
-        const { data, error } = await supabase.auth.signUp({ 
-          email, password, options: { data: { full_name: name } } 
+        const { data, error } = await supabase.auth.signUp({
+          email, password, options: { data: { full_name: name } },
         });
         if (error) throw error;
-        
-        // Supabase returns a fake success if email exists but confirms are off.
-        // We know we succeeded ONLY if we now have a session
-        const { data: newSessionData } = await supabase.auth.getSession();
-        if (!newSessionData.session) {
-          throw new Error('Email is already registered. Please log in first, or use a different email.');
-        }
 
-        // upsert profile snippet since we skipped signUpEmail abstraction
+        const { data: newSession } = await supabase.auth.getSession();
+        if (!newSession.session) {
+          throw new Error('This email is already registered. Please log in first or use a different email.');
+        }
         if (data.user) {
           await supabase.from('profiles').upsert({ id: data.user.id, full_name: name, phone, role: 'user' });
         }
       }
-      
+
       await refreshUserCache();
+
+      // ── 2. Upload images to Supabase Storage ──────────────────
+      if (btn) btn.textContent = '📤 Uploading photos…';
+      const imageUrls = await Promise.all(
+        validFiles.map(file => {
+          // Convert File → base64 dataURL → upload to storage
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+              const url = await uploadImageToStorage(ev.target.result, 'guide-images');
+              resolve(url);
+            };
+            reader.onerror = () => resolve(''); // skip broken files
+            reader.readAsDataURL(file);
+          });
+        })
+      );
+
+      const finalUrls = imageUrls.filter(Boolean);
+      if (btn) btn.textContent = '💾 Saving profile…';
+
+      // ── 3. Insert guide row (only URLs, no base64) ────────────
       await insertGuide({
         name, title, experience, languages, specialties,
         price: parseInt(price), location, bio,
         certifications: certs,
-        images: uploadedImages,
-        cover_image: uploadedImages[0] || '',
+        images: finalUrls,
+        cover_image: finalUrls[0] || '',
         phone, email,
         verified: true, available: true,
       });
+
       showToast('Guide application live! 🎉', 'Your profile is now visible to travellers.');
       setTimeout(() => window.router.navigate('/host-dashboard'), 800);
-    } catch(e) {
-      showToast(e.message || 'Submission failed','','error');
+
+    } catch (e) {
+      console.error('[Guide Signup]', e);
+      showToast(e.message || 'Submission failed. Please try again.', '', 'error');
       if (btn) { btn.disabled = false; btn.textContent = 'Submit Guide Application 🧭'; }
     }
   });

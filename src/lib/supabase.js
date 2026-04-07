@@ -239,6 +239,38 @@ export async function insertTransport(data) {
   return row;
 }
 
+/**
+ * Uploads a base64 dataURL to Supabase Storage and returns a public URL.
+ * Falls back to the dataURL itself if storage is unavailable.
+ * @param {string} dataUrl  - base64 data URL (data:image/jpeg;base64,...)
+ * @param {string} bucket  - storage bucket name (default: 'guide-images')
+ * @returns {Promise<string>} public URL or original dataUrl on failure
+ */
+export async function uploadImageToStorage(dataUrl, bucket = 'guide-images') {
+  try {
+    // Convert base64 dataURL → Blob
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const ext = blob.type.includes('png') ? 'png' : 'jpg';
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(fileName, blob, { contentType: blob.type, upsert: true });
+
+    if (error) {
+      console.warn('[uploadImageToStorage] storage error, using dataURL fallback:', error.message);
+      return dataUrl;
+    }
+
+    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
+    return urlData.publicUrl;
+  } catch (e) {
+    console.warn('[uploadImageToStorage] failed, using dataURL fallback:', e.message);
+    return dataUrl;
+  }
+}
+
 export async function getHostListings() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { stays: [], guides: [], transport: [] };
