@@ -240,34 +240,34 @@ export async function insertTransport(data) {
 }
 
 /**
- * Uploads a base64 dataURL to Supabase Storage and returns a public URL.
- * Falls back to the dataURL itself if storage is unavailable.
- * @param {string} dataUrl  - base64 data URL (data:image/jpeg;base64,...)
- * @param {string} bucket  - storage bucket name (default: 'guide-images')
- * @returns {Promise<string>} public URL or original dataUrl on failure
+ * Uploads a File or Blob directly to Supabase Storage and returns the public URL.
+ * Throws on failure — do NOT silently fall back to base64 (causes DB payload overflow).
+ * @param {File|Blob} file  - the file to upload
+ * @param {string} bucket   - storage bucket name
+ * @returns {Promise<string>} public URL
  */
+export async function uploadFileToStorage(file, bucket = 'guide-images') {
+  const ext = file.type.includes('png') ? 'png' : 'jpg';
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(fileName, file, { contentType: file.type, upsert: true });
+
+  if (error) throw new Error(`Image upload failed: ${error.message}`);
+
+  const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
+  return urlData.publicUrl;
+}
+
+/** @deprecated — use uploadFileToStorage instead */
 export async function uploadImageToStorage(dataUrl, bucket = 'guide-images') {
   try {
-    // Convert base64 dataURL → Blob
     const res = await fetch(dataUrl);
     const blob = await res.blob();
-    const ext = blob.type.includes('png') ? 'png' : 'jpg';
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(fileName, blob, { contentType: blob.type, upsert: true });
-
-    if (error) {
-      console.warn('[uploadImageToStorage] storage error, using dataURL fallback:', error.message);
-      return dataUrl;
-    }
-
-    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
-    return urlData.publicUrl;
+    return uploadFileToStorage(blob, bucket);
   } catch (e) {
-    console.warn('[uploadImageToStorage] failed, using dataURL fallback:', e.message);
-    return dataUrl;
+    throw new Error(`Image upload failed: ${e.message}`);
   }
 }
 
