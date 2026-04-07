@@ -1,5 +1,6 @@
 import { sendPhoneOtp, verifyPhoneOtp, signInEmail, signInGoogle } from '../lib/supabase.js';
 import { refreshUserCache, showToast, appHref } from '../utils.js';
+import { checkRateLimit, recordAttempt, clearAttempts, RL } from '../lib/rateLimiter.js';
 
 export function renderLogin() {
   return `
@@ -118,13 +119,20 @@ export function initLogin() {
     const email    = document.getElementById('login-email')?.value?.trim();
     const password = document.getElementById('login-password')?.value;
     if (!email || !password) { showToast('Please fill all fields', '', 'error'); return; }
+
+    // ── Rate limit check ──
+    const rl = checkRateLimit(RL.LOGIN_EMAIL);
+    if (!rl.allowed) { showToast('Too many attempts 🔒', rl.message, 'error'); return; }
+
     setLoading(true);
     try {
       await signInEmail({ email, password });
+      clearAttempts(RL.LOGIN_EMAIL); // reset on success
       await refreshUserCache();
       showToast('Welcome back! 👋');
       setTimeout(() => window.router.navigate('/'), 500);
     } catch (e) {
+      recordAttempt(RL.LOGIN_EMAIL); // count failed attempts only
       showToast(e.message || 'Login failed', '', 'error');
     } finally {
       setLoading(false);
@@ -140,14 +148,21 @@ export function initLogin() {
     e.preventDefault();
     const email = document.getElementById('login-email')?.value?.trim();
     if (!email) { showToast('Enter your email above first', '', 'error'); return; }
+
+    // ── Rate limit check ──
+    const rl = checkRateLimit(RL.FORGOT_PASSWORD);
+    if (!rl.allowed) { showToast('Too many attempts 🔒', rl.message, 'error'); return; }
+
     try {
       const { supabase } = await import('../lib/supabase.js');
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: window.location.origin + appHref('/'),
       });
       if (error) throw error;
+      recordAttempt(RL.FORGOT_PASSWORD);
       showToast('Password reset email sent! ✉️', 'Check your inbox.');
     } catch (e) {
+      recordAttempt(RL.FORGOT_PASSWORD);
       showToast(e.message || 'Failed to send reset email', '', 'error');
     }
   });
@@ -178,12 +193,18 @@ export function initLogin() {
   sendBtn?.addEventListener('click', async () => {
     const raw = document.getElementById('login-phone')?.value?.replace(/\D/g, '');
     if (!raw || raw.length < 10) { showToast('Enter a valid 10-digit number', '', 'error'); return; }
+
+    // ── Rate limit check ──
+    const rl = checkRateLimit(RL.LOGIN_OTP_SEND);
+    if (!rl.allowed) { showToast('Too many attempts 🔒', rl.message, 'error'); return; }
+
     activePhone = '+91' + raw;
     sendBtn.disabled = true;
     sendLabel.style.display = 'none';
     sendSpinner.style.display = '';
     try {
       await sendPhoneOtp(activePhone);
+      recordAttempt(RL.LOGIN_OTP_SEND);
       showToast('OTP sent! 📲', 'Check your messages.');
       document.getElementById('otp-step-1').style.display = 'none';
       document.getElementById('otp-step-2').style.display = '';
@@ -191,6 +212,7 @@ export function initLogin() {
       focusOtpBox(0);
       startResendTimer();
     } catch (e) {
+      recordAttempt(RL.LOGIN_OTP_SEND);
       showToast(e.message || 'Failed to send OTP', '', 'error');
     } finally {
       sendBtn.disabled = false;
@@ -234,16 +256,24 @@ export function initLogin() {
   verifyBtn?.addEventListener('click', async () => {
     const token = getOtpValue();
     if (token.length < 6) { showToast('Enter the full 6-digit OTP', '', 'error'); return; }
+
+    // ── Rate limit check ──
+    const rl = checkRateLimit(RL.LOGIN_OTP_VERIFY);
+    if (!rl.allowed) { showToast('Too many attempts 🔒', rl.message, 'error'); return; }
+
     verifyBtn.disabled = true;
     verifyLabel.style.display = 'none';
     verifySpinner.style.display = '';
     try {
       await verifyPhoneOtp(activePhone, token);
+      clearAttempts(RL.LOGIN_OTP_VERIFY); // reset on success
+      clearAttempts(RL.LOGIN_OTP_SEND);
       await refreshUserCache();
       showToast('Welcome back! 👋');
       clearInterval(resendInterval);
       setTimeout(() => window.router.navigate('/'), 500);
     } catch (e) {
+      recordAttempt(RL.LOGIN_OTP_VERIFY);
       showToast(e.message || 'Invalid OTP', '', 'error');
       clearOtpBoxes();
       focusOtpBox(0);
@@ -275,14 +305,21 @@ export function initLogin() {
 
   document.getElementById('resend-btn')?.addEventListener('click', async () => {
     if (!activePhone) return;
+
+    // ── Rate limit check (shares the send bucket) ──
+    const rl = checkRateLimit(RL.LOGIN_OTP_SEND);
+    if (!rl.allowed) { showToast('Too many attempts 🔒', rl.message, 'error'); return; }
+
     try {
       await sendPhoneOtp(activePhone);
+      recordAttempt(RL.LOGIN_OTP_SEND);
       showToast('OTP resent! 📲');
       clearOtpBoxes();
       focusOtpBox(0);
       startResendTimer();
       document.getElementById('resend-btn').style.display = 'none';
     } catch (e) {
+      recordAttempt(RL.LOGIN_OTP_SEND);
       showToast(e.message || 'Failed to resend', '', 'error');
     }
   });

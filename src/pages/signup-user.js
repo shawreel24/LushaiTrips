@@ -1,5 +1,6 @@
 import { sendPhoneOtp, verifyPhoneOtp, signUpEmail, signInGoogle } from '../lib/supabase.js';
 import { refreshUserCache, showToast, appHref } from '../utils.js';
+import { checkRateLimit, recordAttempt, clearAttempts, RL } from '../lib/rateLimiter.js';
 
 export function renderSignupUser() {
   return `
@@ -144,13 +145,19 @@ export function initSignupUser() {
     if (password !== confirm) { showToast('Passwords do not match', '', 'error'); return; }
     if (password.length < 8)  { showToast('Password must be at least 8 characters', '', 'error'); return; }
 
+    // ── Rate limit check ──
+    const rl = checkRateLimit(RL.SIGNUP_EMAIL);
+    if (!rl.allowed) { showToast('Too many attempts 🔒', rl.message, 'error'); return; }
+
     setLoading(true);
     try {
       await signUpEmail({ email, password, fullName, phone });
+      clearAttempts(RL.SIGNUP_EMAIL);
       await refreshUserCache();
       showToast('Account created! Welcome 🎉', 'Check your email to confirm your account.');
       setTimeout(() => window.router.navigate('/discover'), 800);
     } catch (e) {
+      recordAttempt(RL.SIGNUP_EMAIL);
       showToast(e.message || 'Sign up failed', '', 'error');
     } finally {
       setLoading(false);
@@ -184,12 +191,18 @@ export function initSignupUser() {
     const raw  = document.getElementById('su-otp-phone')?.value?.replace(/\D/g, '');
     if (!activeName) { showToast('Please enter your name', '', 'error'); return; }
     if (!raw || raw.length < 10) { showToast('Enter a valid 10-digit number', '', 'error'); return; }
+
+    // ── Rate limit check ──
+    const rl = checkRateLimit(RL.SIGNUP_OTP_SEND);
+    if (!rl.allowed) { showToast('Too many attempts 🔒', rl.message, 'error'); return; }
+
     activePhone = '+91' + raw;
     sendBtn.disabled = true;
     document.getElementById('su-send-label').style.display = 'none';
     document.getElementById('su-send-spinner').style.display = '';
     try {
       await sendPhoneOtp(activePhone);
+      recordAttempt(RL.SIGNUP_OTP_SEND);
       showToast('OTP sent! 📲', 'Check your messages.');
       document.getElementById('su-otp-step-1').style.display = 'none';
       document.getElementById('su-otp-step-2').style.display = '';
@@ -197,6 +210,7 @@ export function initSignupUser() {
       focusSuBox(0);
       startResendTimer();
     } catch (e) {
+      recordAttempt(RL.SIGNUP_OTP_SEND);
       showToast(e.message || 'Failed to send OTP', '', 'error');
     } finally {
       sendBtn.disabled = false;
@@ -236,16 +250,23 @@ export function initSignupUser() {
   verifyBtn?.addEventListener('click', async () => {
     const token = [...suBoxes].map(b => b.value).join('');
     if (token.length < 6) { showToast('Enter the full 6-digit OTP', '', 'error'); return; }
+
+    // ── Rate limit check ──
+    const rl = checkRateLimit(RL.SIGNUP_OTP_SEND);
+    if (!rl.allowed) { showToast('Too many attempts 🔒', rl.message, 'error'); return; }
+
     verifyBtn.disabled = true;
     document.getElementById('su-verify-label').style.display = 'none';
     document.getElementById('su-verify-spinner').style.display = '';
     try {
       await verifyPhoneOtp(activePhone, token, { full_name: activeName });
+      clearAttempts(RL.SIGNUP_OTP_SEND);
       await refreshUserCache();
       showToast('Account created! Welcome 🎉');
       clearInterval(resendInterval);
       setTimeout(() => window.router.navigate('/discover'), 800);
     } catch (e) {
+      recordAttempt(RL.SIGNUP_OTP_SEND);
       showToast(e.message || 'Invalid OTP', '', 'error');
       suBoxes.forEach(b => b.value = '');
       focusSuBox(0);
@@ -277,14 +298,21 @@ export function initSignupUser() {
 
   document.getElementById('su-resend-btn')?.addEventListener('click', async () => {
     if (!activePhone) return;
+
+    // ── Rate limit check (shares the send bucket) ──
+    const rl = checkRateLimit(RL.SIGNUP_OTP_SEND);
+    if (!rl.allowed) { showToast('Too many attempts 🔒', rl.message, 'error'); return; }
+
     try {
       await sendPhoneOtp(activePhone);
+      recordAttempt(RL.SIGNUP_OTP_SEND);
       showToast('OTP resent! 📲');
       suBoxes.forEach(b => b.value = '');
       focusSuBox(0);
       startResendTimer();
       document.getElementById('su-resend-btn').style.display = 'none';
     } catch (e) {
+      recordAttempt(RL.SIGNUP_OTP_SEND);
       showToast(e.message || 'Failed to resend', '', 'error');
     }
   });
