@@ -100,12 +100,29 @@ export function initHostSignupGuide() {
     [...e.target.files].forEach(file => {
       const reader = new FileReader();
       reader.onload = ev => {
-        uploadedImages.push(ev.target.result);
-        const wrap = document.createElement('div'); wrap.className = 'upload-img-wrap';
-        const idx = uploadedImages.length - 1;
-        wrap.innerHTML = `<img src="${ev.target.result}" alt="upload" />${idx===0?'<div style="position:absolute;bottom:4px;left:4px;background:rgba(16,185,129,0.9);color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;font-weight:700">PROFILE</div>':''}<button class="remove-img">✕</button>`;
-        document.getElementById('g-photo-preview')?.appendChild(wrap);
-        wrap.querySelector('.remove-img')?.addEventListener('click', () => { uploadedImages.splice(idx,1); wrap.remove(); });
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let { width, height } = img;
+          const MAX_SIZE = 800;
+          if (width > height && width > MAX_SIZE) {
+            height *= MAX_SIZE / width; width = MAX_SIZE;
+          } else if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height; height = MAX_SIZE;
+          }
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          
+          uploadedImages.push(dataUrl);
+          const wrap = document.createElement('div'); wrap.className = 'upload-img-wrap';
+          const idx = uploadedImages.length - 1;
+          wrap.innerHTML = `<img src="${dataUrl}" alt="upload" />${idx===0?'<div style="position:absolute;bottom:4px;left:4px;background:rgba(16,185,129,0.9);color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;font-weight:700">PROFILE</div>':''}<button class="remove-img">✕</button>`;
+          document.getElementById('g-photo-preview')?.appendChild(wrap);
+          wrap.querySelector('.remove-img')?.addEventListener('click', () => { uploadedImages.splice(idx,1); wrap.remove(); });
+        };
+        img.src = ev.target.result;
       };
       reader.readAsDataURL(file);
     });
@@ -130,9 +147,26 @@ export function initHostSignupGuide() {
       // Create account only if not already logged in
       const { supabase } = await import('../lib/supabase.js');
       const { data: { session } } = await supabase.auth.getSession();
+      
       if (!session) {
-        await signUpEmail({ email, password, fullName: name, phone });
+        const { data, error } = await supabase.auth.signUp({ 
+          email, password, options: { data: { full_name: name } } 
+        });
+        if (error) throw error;
+        
+        // Supabase returns a fake success if email exists but confirms are off.
+        // We know we succeeded ONLY if we now have a session
+        const { data: newSessionData } = await supabase.auth.getSession();
+        if (!newSessionData.session) {
+          throw new Error('Email is already registered. Please log in first, or use a different email.');
+        }
+
+        // upsert profile snippet since we skipped signUpEmail abstraction
+        if (data.user) {
+          await supabase.from('profiles').upsert({ id: data.user.id, full_name: name, phone, role: 'user' });
+        }
       }
+      
       await refreshUserCache();
       await insertGuide({
         name, title, experience, languages, specialties,

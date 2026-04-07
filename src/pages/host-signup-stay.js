@@ -223,24 +223,40 @@ function goToStep(step) {
 function bindStepEvents(step) {
   if (step === 4) {
     document.getElementById('photo-input')?.addEventListener('change', e => {
-      const files = [...e.target.files];
-      files.forEach(file => {
+      [...e.target.files].forEach(file => {
         const reader = new FileReader();
         reader.onload = ev => {
-          uploadedImages.push(ev.target.result);
-          const preview = document.getElementById('photo-preview');
-          const count = document.getElementById('photo-count');
-          const wrap = document.createElement('div');
-          wrap.className = 'upload-img-wrap';
-          const idx = uploadedImages.length - 1;
-          wrap.innerHTML = `<img src="${ev.target.result}" alt="upload" />${idx === 0 ? '<div style="position:absolute;bottom:4px;left:4px;background:rgba(16,185,129,0.9);color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;font-weight:700">COVER</div>' : ''}<button class="remove-img" data-idx="${idx}">✕</button>`;
-          preview?.appendChild(wrap);
-          if (count) count.textContent = uploadedImages.length + ' photo(s) uploaded';
-          wrap.querySelector('.remove-img')?.addEventListener('click', ev => {
-            uploadedImages.splice(idx, 1);
-            wrap.remove();
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let { width, height } = img;
+            const MAX_SIZE = 800;
+            if (width > height && width > MAX_SIZE) {
+              height *= MAX_SIZE / width; width = MAX_SIZE;
+            } else if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height; height = MAX_SIZE;
+            }
+            canvas.width = width; canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            
+            uploadedImages.push(dataUrl);
+            const preview = document.getElementById('photo-preview');
+            const count = document.getElementById('photo-count');
+            const wrap = document.createElement('div');
+            wrap.className = 'upload-img-wrap';
+            const idx = uploadedImages.length - 1;
+            wrap.innerHTML = `<img src="${dataUrl}" alt="upload" />${idx === 0 ? '<div style="position:absolute;bottom:4px;left:4px;background:rgba(16,185,129,0.9);color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;font-weight:700">COVER</div>' : ''}<button class="remove-img" data-idx="${idx}">✕</button>`;
+            preview?.appendChild(wrap);
             if (count) count.textContent = uploadedImages.length + ' photo(s) uploaded';
-          });
+            wrap.querySelector('.remove-img')?.addEventListener('click', ev => {
+              uploadedImages.splice(idx, 1);
+              wrap.remove();
+              if (count) count.textContent = uploadedImages.length + ' photo(s) uploaded';
+            });
+          };
+          img.src = ev.target.result;
         };
         reader.readAsDataURL(file);
       });
@@ -274,18 +290,26 @@ async function submitListing() {
   const nextBtn = document.getElementById('next-btn');
   if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = '⏳ Submitting…'; }
   try {
-    // 1. If user is NOT already logged in, create their account first
     const { supabase } = await import('../lib/supabase.js');
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
-      // New host — sign up with email/password
-      await signUpEmail({ email: formData.email, password: formData.password, fullName: formData.name, phone: formData.phone });
-      await refreshUserCache();
-    } else {
-      // Already logged in — just refresh cache to ensure latest user data
-      await refreshUserCache();
+      const { data, error } = await supabase.auth.signUp({ 
+        email: formData.email, password: formData.password, options: { data: { full_name: formData.name } } 
+      });
+      if (error) throw error;
+      
+      const { data: newSessionData } = await supabase.auth.getSession();
+      if (!newSessionData.session) {
+        throw new Error('Email is already registered. Please log in first, or use a different email.');
+      }
+
+      if (data.user) {
+        await supabase.from('profiles').upsert({ id: data.user.id, full_name: formData.name, phone: formData.phone, role: 'user' });
+      }
     }
+    
+    await refreshUserCache();
 
     // 2. Insert the stay listing
     await insertStay({
@@ -316,3 +340,4 @@ async function submitListing() {
     if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = '🚀 Submit Listing'; }
   }
 }
+

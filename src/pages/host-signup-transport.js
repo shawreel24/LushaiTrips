@@ -123,11 +123,28 @@ export function initHostSignupTransport() {
     [...e.target.files].forEach(file => {
       const reader = new FileReader();
       reader.onload = ev => {
-        uploadedImages.push(ev.target.result);
-        const wrap = document.createElement('div'); wrap.className = 'upload-img-wrap';
-        wrap.innerHTML = `<img src="${ev.target.result}" alt="v" /><button class="remove-img">✕</button>`;
-        document.getElementById('t-photo-preview')?.appendChild(wrap);
-        wrap.querySelector('.remove-img')?.addEventListener('click', () => { uploadedImages.splice(uploadedImages.indexOf(ev.target.result),1); wrap.remove(); });
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let { width, height } = img;
+          const MAX_SIZE = 800;
+          if (width > height && width > MAX_SIZE) {
+            height *= MAX_SIZE / width; width = MAX_SIZE;
+          } else if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height; height = MAX_SIZE;
+          }
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          
+          uploadedImages.push(dataUrl);
+          const wrap = document.createElement('div'); wrap.className = 'upload-img-wrap';
+          wrap.innerHTML = `<img src="${dataUrl}" alt="v" /><button class="remove-img">✕</button>`;
+          document.getElementById('t-photo-preview')?.appendChild(wrap);
+          wrap.querySelector('.remove-img')?.addEventListener('click', () => { uploadedImages.splice(uploadedImages.indexOf(dataUrl),1); wrap.remove(); });
+        };
+        img.src = ev.target.result;
       };
       reader.readAsDataURL(file);
     });
@@ -154,7 +171,19 @@ export function initHostSignupTransport() {
       const { supabase } = await import('../lib/supabase.js');
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        await signUpEmail({ email, password, fullName: name, phone });
+        const { data, error } = await supabase.auth.signUp({ 
+          email, password, options: { data: { full_name: name } } 
+        });
+        if (error) throw error;
+        
+        const { data: newSessionData } = await supabase.auth.getSession();
+        if (!newSessionData.session) {
+          throw new Error('Email is already registered. Please log in first, or use a different email.');
+        }
+
+        if (data.user) {
+          await supabase.from('profiles').upsert({ id: data.user.id, full_name: name, phone, role: 'user' });
+        }
       }
       await refreshUserCache();
       await insertTransport({
