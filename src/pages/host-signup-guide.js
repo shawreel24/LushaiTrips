@@ -1,11 +1,10 @@
-import { getSession, insertGuide, signInEmail, supabase, uploadFileToStorage } from '../lib/supabase.js';
-import { getCurrentUser, refreshUserCache, showToast } from '../utils.js';
+import { insertGuide, signInEmail, supabase, uploadFileToStorage } from '../lib/supabase.js';
+import { refreshUserCache, showToast } from '../utils.js';
 
 let uploadedImages = []; // base64 previews for display only
 let uploadedFiles  = []; // prepared File objects for actual upload
 let pendingPhotoTasks = 0;
 
-const SESSION_TIMEOUT_MS = 30000;
 const LOGIN_TIMEOUT_MS = 15000;
 const SIGNUP_TIMEOUT_MS = 60000;
 const SAVE_TIMEOUT_MS = 60000;
@@ -200,42 +199,8 @@ async function verifyExistingGuideSubmission(email, phone) {
 }
 
 async function ensureGuideSession({ name, email, password, phone }) {
-  let session = null;
-  try {
-    session = await withTimeout(
-      getSession(),
-      SESSION_TIMEOUT_MS,
-      'Session check timed out. Please retry.'
-    );
-  } catch (sessionError) {
-    if (!isTimeoutError(sessionError)) throw sessionError;
-    console.warn('[Guide Signup] session check timed out, falling back to direct sign-in flow.');
-  }
-
-  if (session) return session;
-
-  const cachedUser = getCurrentUser();
-  if (cachedUser?.email && cachedUser.email.toLowerCase() === email.toLowerCase()) {
-    setSubmitStatus('Restoring your login session...', 'var(--emerald-400)');
-    setButtonState('Restoring session...');
-
-    try {
-      const loginData = await withTimeout(
-        signInEmail({ email, password }),
-        LOGIN_TIMEOUT_MS,
-        'Login timed out. Please try again.'
-      );
-      if (loginData?.session) return loginData.session;
-    } catch (loginError) {
-      if (isEmailConfirmationError(loginError)) {
-        throw new Error('This account exists but is not confirmed yet. Check your email, then log in and submit the guide form again.');
-      }
-      console.warn('[Guide Signup] cached-user session restore failed:', loginError?.message || loginError);
-    }
-  }
-
-  setSubmitStatus('Checking whether this account already exists...', 'var(--emerald-400)');
-  setButtonState('Checking account...');
+  setSubmitStatus('Signing you in...', 'var(--emerald-400)');
+  setButtonState('Signing in...');
 
   try {
     const loginData = await withTimeout(
@@ -243,7 +208,7 @@ async function ensureGuideSession({ name, email, password, phone }) {
       LOGIN_TIMEOUT_MS,
       'Login timed out. Please try again.'
     );
-    if (loginData?.session) return loginData.session;
+    if (loginData?.session?.user?.id) return loginData.session.user.id;
   } catch (loginError) {
     if (isEmailConfirmationError(loginError)) {
       throw new Error('This account exists but is not confirmed yet. Check your email, then log in and submit the guide form again.');
@@ -268,30 +233,33 @@ async function ensureGuideSession({ name, email, password, phone }) {
     );
     if (signupError) throw signupError;
 
-    if (signupData?.session) return signupData.session;
-
-    session = await withTimeout(
-      getSession(),
-      SESSION_TIMEOUT_MS,
-      'Session refresh timed out. Please retry.'
-    );
-    if (session) return session;
+    if (signupData?.session?.user?.id) {
+      await supabase.from('profiles').upsert({
+        id: signupData.session.user.id,
+        full_name: name,
+        phone,
+        role: 'user',
+      });
+      return signupData.session.user.id;
+    }
 
     setSubmitStatus('Finishing sign-in...', 'var(--emerald-400)');
     setButtonState('Finishing sign-in...');
+
     const loginAfterSignup = await withTimeout(
       signInEmail({ email, password }),
       LOGIN_TIMEOUT_MS,
       'Login timed out. Please try again.'
     );
-    if (loginAfterSignup?.session) {
+
+    if (loginAfterSignup?.session?.user?.id) {
       await supabase.from('profiles').upsert({
         id: loginAfterSignup.session.user.id,
         full_name: name,
         phone,
         role: 'user',
       });
-      return loginAfterSignup.session;
+      return loginAfterSignup.session.user.id;
     }
   } catch (signupError) {
     if (isExistingAccountError(signupError)) {
@@ -302,7 +270,7 @@ async function ensureGuideSession({ name, email, password, phone }) {
         LOGIN_TIMEOUT_MS,
         'Login timed out. Please try again.'
       );
-      if (existingLogin?.session) return existingLogin.session;
+      if (existingLogin?.session?.user?.id) return existingLogin.session.user.id;
     }
 
     if (isRateLimitError(signupError)) {
@@ -316,7 +284,7 @@ async function ensureGuideSession({ name, email, password, phone }) {
     throw signupError;
   }
 
-  throw new Error('We could not create an active login session for this guide application. Please log in first, then submit the guide form again.');
+  throw new Error('We could not create an active guide account session. Please log in again and retry.');
 }
 
 export function renderHostSignupGuide() {
@@ -497,7 +465,7 @@ export function initHostSignupGuide() {
 
     try {
       currentStage = 'auth';
-      await ensureGuideSession({ name, email, password, phone });
+      const hostId = await ensureGuideSession({ name, email, password, phone });
 
       setSubmitStatus('Loading your account...', 'var(--emerald-400)');
       refreshUserCache().catch(error => {
@@ -546,6 +514,7 @@ export function initHostSignupGuide() {
       currentStage = 'save';
       await withTimeout(
         insertGuide({
+          host_id: hostId,
           name, title, experience, languages, specialties,
           price: parseInt(price), location, bio,
           certifications: certs,
