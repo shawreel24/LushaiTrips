@@ -1,6 +1,21 @@
 import { loginUser, showToast, appHref, refreshUserCache } from '../utils.js';
 import { signInEmail } from '../lib/supabase.js';
 
+const LOGIN_TIMEOUT_MS = 30000;
+const SESSION_TIMEOUT_MS = 15000;
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function isTimeoutError(err) {
+  return typeof err?.message === 'string' && err.message.toLowerCase().includes('timed out');
+}
+
 export function renderLogin() {
   return `
     <div class="auth-page">
@@ -55,12 +70,39 @@ export function initLogin() {
     }
 
     try {
-      await signInEmail({ email, password });
-      await refreshUserCache();
+      await withTimeout(
+        signInEmail({ email, password }),
+        LOGIN_TIMEOUT_MS,
+        'Login timed out. Please try again.'
+      );
+      await withTimeout(
+        refreshUserCache(),
+        SESSION_TIMEOUT_MS,
+        'Login timed out while loading your profile.'
+      );
       showToast('Welcome back!');
       setTimeout(() => window.router.navigate('/'), 500);
       return;
     } catch (e) {
+      if (isTimeoutError(e)) {
+        try {
+          const { getSession } = await import('../lib/supabase.js');
+          const session = await withTimeout(
+            getSession(),
+            SESSION_TIMEOUT_MS,
+            'Login timed out. Please try again.'
+          );
+          if (session) {
+            await refreshUserCache();
+            showToast('Welcome back!');
+            setTimeout(() => window.router.navigate('/'), 500);
+            return;
+          }
+        } catch (sessionErr) {
+          console.warn('[login] timeout verification failed:', sessionErr?.message || sessionErr);
+        }
+      }
+
       // Backward compatibility for older local-only accounts.
       try {
         loginUser(email, password);
