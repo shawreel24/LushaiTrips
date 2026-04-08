@@ -4,6 +4,15 @@ import { appHref, starsHTML } from '../utils.js';
 
 const guideCache = new Map();
 const GUIDE_PLACEHOLDER = 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&q=80';
+const GUIDE_FETCH_TIMEOUT_MS = 6000;
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 function normalizeGuide(guide) {
   const images = Array.isArray(guide.images) ? guide.images.filter(Boolean) : [];
@@ -186,7 +195,11 @@ export async function initGuides() {
 
   let normalizedGuides = [];
   try {
-    const rows = await fetchGuides();
+    const rows = await withTimeout(
+      fetchGuides(),
+      GUIDE_FETCH_TIMEOUT_MS,
+      'Guide list request timed out.'
+    );
     normalizedGuides = rememberGuides(rows.map(normalizeGuide));
   } catch (error) {
     console.warn('[guides] falling back to static data:', error.message);
@@ -223,7 +236,11 @@ export async function initGuideDetail(id) {
   let guide = guideCache.get(id) || null;
   if (!guide) {
     try {
-      const row = await fetchGuideById(id);
+      const row = await withTimeout(
+        fetchGuideById(id),
+        GUIDE_FETCH_TIMEOUT_MS,
+        'Guide profile request timed out.'
+      );
       if (row) guide = normalizeGuide(row);
     } catch (error) {
       console.warn('[guide-detail] falling back to static data:', error.message);
