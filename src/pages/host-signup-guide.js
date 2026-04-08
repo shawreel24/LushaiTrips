@@ -1,5 +1,4 @@
-import { insertGuide, signInEmail, supabase, uploadFileToStorage } from '../lib/supabase.js';
-import { refreshUserCache, showToast } from '../utils.js';
+import { showToast, setCurrentUser } from '../utils.js';
 
 let uploadedImages = []; // base64 previews for display only
 let uploadedFiles  = []; // prepared File objects for actual upload
@@ -9,6 +8,8 @@ const LOGIN_TIMEOUT_MS = 15000;
 const SIGNUP_TIMEOUT_MS = 60000;
 const SAVE_TIMEOUT_MS = 60000;
 const UPLOAD_TIMEOUT_MS = 30000;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 function withTimeout(promise, ms, message) {
   let timer;
@@ -104,6 +105,138 @@ function setButtonState(message, disabled = true) {
   btn.textContent = message;
 }
 
+function getSupabaseStorageKey() {
+  const hostname = new URL(SUPABASE_URL).hostname;
+  const projectRef = hostname.split('.')[0];
+  return `sb-${projectRef}-auth-token`;
+}
+
+function getStoredSupabaseSession() {
+  try {
+    return JSON.parse(localStorage.getItem(getSupabaseStorageKey()));
+  } catch {
+    return null;
+  }
+}
+
+function storeSupabaseSession(session) {
+  if (!session) return;
+  localStorage.setItem(getSupabaseStorageKey(), JSON.stringify(session));
+}
+
+function cacheGuideUser(sessionOrUser) {
+  const user = sessionOrUser?.user || sessionOrUser;
+  if (!user) return;
+  setCurrentUser({
+    id: user.id,
+    email: user.email || '',
+    full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
+    phone: user.phone || '',
+    role: 'user',
+  });
+}
+
+function buildSupabaseHeaders(accessToken = '') {
+  const headers = {
+    apikey: SUPABASE_ANON,
+  };
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  return headers;
+}
+
+async function parseSupabaseJson(response) {
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const message = data?.msg || data?.message || 'Supabase request failed.';
+    throw new Error(message);
+  }
+
+  return data;
+}
+
+async function signInGuideAccount(email, password) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: {
+      ...buildSupabaseHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  const data = await parseSupabaseJson(response);
+  storeSupabaseSession(data);
+  cacheGuideUser(data);
+  return data;
+}
+
+async function signUpGuideAccount(email, password, fullName) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+    method: 'POST',
+    headers: {
+      ...buildSupabaseHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email,
+      password,
+      data: { full_name: fullName },
+    }),
+  });
+
+  const data = await parseSupabaseJson(response);
+  if (data?.access_token) {
+    storeSupabaseSession(data);
+    cacheGuideUser(data);
+  } else if (data?.user) {
+    cacheGuideUser(data.user);
+  }
+  return data;
+}
+
+async function uploadFileToStorageDirect(file, bucket, accessToken) {
+  const ext = file.type.includes('png') ? 'png' : 'jpg';
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${bucket}/${fileName}`;
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      ...buildSupabaseHeaders(accessToken),
+      'Content-Type': file.type,
+      'x-upsert': 'true',
+    },
+    body: file,
+  });
+
+  await parseSupabaseJson(response);
+  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${fileName}`;
+}
+
+async function insertGuideDirect(data, accessToken) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/guides`, {
+    method: 'POST',
+    headers: {
+      ...buildSupabaseHeaders(accessToken),
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(data),
+  });
+
+  const rows = await parseSupabaseJson(response);
+  return Array.isArray(rows) ? rows[0] : rows;
+}
+
 function canvasToJpegFile(canvas, originalName = 'guide-photo.jpg') {
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => {
@@ -188,27 +321,46 @@ function renderPreparedPhotoCard(wrap, preview, index) {
 }
 
 async function verifyExistingGuideSubmission(email, phone) {
-  const { data } = await supabase
-    .from('guides')
-    .select('id')
-    .eq('email', email)
-    .eq('phone', phone)
-    .limit(1);
-
+  const query = new URLSearchParams({
+    select: 'id',
+    email: `eq.${email}`,
+    phone: `eq.${phone}`,
+    limit: '1',
+  });
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/guides?${query.toString()}`, {
+    headers: buildSupabaseHeaders(),
+  });
+  const data = await parseSupabaseJson(response);
   return isGuideAlreadySaved(data);
 }
 
 async function ensureGuideSession({ name, email, password, phone }) {
+  const storedSession = getStoredSupabaseSession();
+  if (storedSession?.access_token && storedSession?.user?.email?.toLowerCase() === email.toLowerCase()) {
+    setSubmitStatus('Using your active session...', 'var(--emerald-400)');
+    setButtonState('Using active session...');
+    cacheGuideUser(storedSession);
+    return {
+      userId: storedSession.user.id,
+      accessToken: storedSession.access_token,
+    };
+  }
+
   setSubmitStatus('Signing you in...', 'var(--emerald-400)');
   setButtonState('Signing in...');
 
   try {
     const loginData = await withTimeout(
-      signInEmail({ email, password }),
+      signInGuideAccount(email, password),
       LOGIN_TIMEOUT_MS,
       'Login timed out. Please try again.'
     );
-    if (loginData?.session?.user?.id) return loginData.session.user.id;
+    if (loginData?.user?.id && loginData?.access_token) {
+      return {
+        userId: loginData.user.id,
+        accessToken: loginData.access_token,
+      };
+    }
   } catch (loginError) {
     if (isEmailConfirmationError(loginError)) {
       throw new Error('This account exists but is not confirmed yet. Check your email, then log in and submit the guide form again.');
@@ -222,55 +374,49 @@ async function ensureGuideSession({ name, email, password, phone }) {
   setButtonState('Creating account...');
 
   try {
-    const { data: signupData, error: signupError } = await withTimeout(
-      supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: name } },
-      }),
+    const signupData = await withTimeout(
+      signUpGuideAccount(email, password, name),
       SIGNUP_TIMEOUT_MS,
       'Sign-up timed out. Please try again in a moment.'
     );
-    if (signupError) throw signupError;
 
-    if (signupData?.session?.user?.id) {
-      await supabase.from('profiles').upsert({
-        id: signupData.session.user.id,
-        full_name: name,
-        phone,
-        role: 'user',
-      });
-      return signupData.session.user.id;
+    if (signupData?.user?.id && signupData?.access_token) {
+      return {
+        userId: signupData.user.id,
+        accessToken: signupData.access_token,
+      };
     }
 
     setSubmitStatus('Finishing sign-in...', 'var(--emerald-400)');
     setButtonState('Finishing sign-in...');
 
     const loginAfterSignup = await withTimeout(
-      signInEmail({ email, password }),
+      signInGuideAccount(email, password),
       LOGIN_TIMEOUT_MS,
       'Login timed out. Please try again.'
     );
 
-    if (loginAfterSignup?.session?.user?.id) {
-      await supabase.from('profiles').upsert({
-        id: loginAfterSignup.session.user.id,
-        full_name: name,
-        phone,
-        role: 'user',
-      });
-      return loginAfterSignup.session.user.id;
+    if (loginAfterSignup?.user?.id && loginAfterSignup?.access_token) {
+      return {
+        userId: loginAfterSignup.user.id,
+        accessToken: loginAfterSignup.access_token,
+      };
     }
   } catch (signupError) {
     if (isExistingAccountError(signupError)) {
       setSubmitStatus('Account already exists. Signing you in...', 'var(--emerald-400)');
       setButtonState('Signing you in...');
       const existingLogin = await withTimeout(
-        signInEmail({ email, password }),
+        signInGuideAccount(email, password),
         LOGIN_TIMEOUT_MS,
         'Login timed out. Please try again.'
       );
-      if (existingLogin?.session?.user?.id) return existingLogin.session.user.id;
+      if (existingLogin?.user?.id && existingLogin?.access_token) {
+        return {
+          userId: existingLogin.user.id,
+          accessToken: existingLogin.access_token,
+        };
+      }
     }
 
     if (isRateLimitError(signupError)) {
@@ -465,12 +611,10 @@ export function initHostSignupGuide() {
 
     try {
       currentStage = 'auth';
-      const hostId = await ensureGuideSession({ name, email, password, phone });
+      const auth = await ensureGuideSession({ name, email, password, phone });
 
       setSubmitStatus('Loading your account...', 'var(--emerald-400)');
-      refreshUserCache().catch(error => {
-        console.warn('[Guide Signup] background cache refresh failed:', error?.message || error);
-      });
+      cacheGuideUser({ user: { id: auth.userId, email, user_metadata: { full_name: name }, phone } });
 
       // ── 2. Upload images (best-effort, never blocks submit) ───
       const validFiles = uploadedFiles.filter(Boolean);
@@ -485,7 +629,7 @@ export function initHostSignupGuide() {
         for (const [index, file] of validFiles.entries()) {
           setPhotoLoader(true, `Uploading ${index + 1} of ${validFiles.length} photo(s)...`);
           const result = await Promise.race([
-            uploadFileToStorage(file, 'guide-images').catch(err => {
+            uploadFileToStorageDirect(file, 'guide-images', auth.accessToken).catch(err => {
               console.warn('[Guide] image upload failed (skipping):', err.message);
               return null;
             }),
@@ -513,8 +657,8 @@ export function initHostSignupGuide() {
       // ── 3. Insert guide row ───────────────────────────────────
       currentStage = 'save';
       await withTimeout(
-        insertGuide({
-          host_id: hostId,
+        insertGuideDirect({
+          host_id: auth.userId,
           name, title, experience, languages, specialties,
           price: parseInt(price), location, bio,
           certifications: certs,
@@ -522,11 +666,15 @@ export function initHostSignupGuide() {
           cover_image: imageUrls[0] || '',
           phone, email,
           verified: true, available: true,
-        }),
+          status: 'approved',
+        }, auth.accessToken),
         SAVE_TIMEOUT_MS,
         'Saving guide profile timed out. Please retry.'
       );
 
+      refreshUserCache().catch(error => {
+        console.warn('[Guide Signup] background cache refresh failed:', error?.message || error);
+      });
       setSubmitStatus('Guide profile created successfully.', 'var(--emerald-400)');
       showToast('Guide application live! 🎉', 'Your profile is now visible to travellers.');
       setTimeout(() => window.router.navigate('/host-dashboard'), 800);
