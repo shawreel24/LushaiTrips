@@ -1,10 +1,12 @@
-import { insertGuide, uploadFileToStorage } from '../lib/supabase.js';
+import { getSession, insertGuide, signInEmail, signUpEmail, uploadFileToStorage } from '../lib/supabase.js';
 import { refreshUserCache, showToast } from '../utils.js';
 
 let uploadedImages = []; // base64 previews for display only
-let uploadedFiles  = []; // original File objects for actual upload
+let uploadedFiles  = []; // prepared File objects for actual upload
+let pendingPhotoTasks = 0;
 
 const SESSION_TIMEOUT_MS = 30000;
+const LOGIN_TIMEOUT_MS = 15000;
 const SIGNUP_TIMEOUT_MS = 60000;
 const SAVE_TIMEOUT_MS = 60000;
 const UPLOAD_TIMEOUT_MS = 30000;
@@ -25,11 +27,241 @@ function getSelectedPhotoCount() {
   return uploadedFiles.filter(Boolean).length;
 }
 
+function getPendingPhotoCount() {
+  return pendingPhotoTasks;
+}
+
 function setPhotoStatus(message, color = 'var(--text-muted)') {
   const el = document.getElementById('g-photo-status');
   if (!el) return;
   el.textContent = message;
   el.style.color = color;
+}
+
+function setSubmitStatus(message, color = 'var(--text-muted)') {
+  const el = document.getElementById('g-submit-status');
+  if (!el) return;
+  el.textContent = message;
+  el.style.color = color;
+}
+
+function setPhotoLoader(visible, message = '') {
+  const wrap = document.getElementById('g-photo-loader');
+  const text = document.getElementById('g-photo-loader-text');
+  if (!wrap || !text) return;
+  wrap.style.display = visible ? 'flex' : 'none';
+  text.textContent = message;
+}
+
+function syncPhotoIndicators() {
+  const pending = getPendingPhotoCount();
+  const selected = getSelectedPhotoCount();
+
+  if (pending > 0) {
+    setPhotoLoader(true, `Preparing ${pending} photo(s)...`);
+    setPhotoStatus(`${selected} photo(s) ready, ${pending} still preparing...`, 'var(--emerald-400)');
+    return;
+  }
+
+  setPhotoLoader(false);
+  setPhotoStatus(
+    selected ? `${selected} photo(s) ready to upload.` : 'No photos selected yet.',
+    selected ? 'var(--emerald-400)' : 'var(--text-muted)'
+  );
+}
+
+function normalizeErrorMessage(err) {
+  return typeof err?.message === 'string' ? err.message.toLowerCase() : '';
+}
+
+function isExistingAccountError(err) {
+  const message = normalizeErrorMessage(err);
+  return message.includes('already registered') || message.includes('user already registered');
+}
+
+function isMissingAccountError(err) {
+  const message = normalizeErrorMessage(err);
+  return message.includes('invalid login credentials') || message.includes('invalid email or password');
+}
+
+function isEmailConfirmationError(err) {
+  const message = normalizeErrorMessage(err);
+  return message.includes('email not confirmed') || message.includes('confirm your email');
+}
+
+function isRateLimitError(err) {
+  const message = normalizeErrorMessage(err);
+  return message.includes('rate limit') || message.includes('too many requests');
+}
+
+function setButtonState(message, disabled = true) {
+  const btn = document.getElementById('submit-guide-btn');
+  if (!btn) return;
+  btn.disabled = disabled;
+  btn.textContent = message;
+}
+
+function canvasToJpegFile(canvas, originalName = 'guide-photo.jpg') {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (!blob) {
+        reject(new Error('Could not prepare the selected image.'));
+        return;
+      }
+
+      const safeBase = originalName.replace(/\.[^.]+$/, '').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'guide-photo';
+      resolve(new File([blob], `${safeBase}.jpg`, { type: 'image/jpeg' }));
+    }, 'image/jpeg', 0.78);
+  });
+}
+
+async function prepareImageForUpload(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+    reader.onload = event => {
+      const img = new Image();
+      img.onerror = () => reject(new Error(`Could not process ${file.name}.`));
+      img.onload = async () => {
+        try {
+          const canvas = document.createElement('canvas');
+          let { width, height } = img;
+          const maxSize = 800;
+
+          if (width > height && width > maxSize) {
+            height *= maxSize / width;
+            width = maxSize;
+          } else if (height > maxSize) {
+            width *= maxSize / height;
+            height = maxSize;
+          }
+
+          canvas.width = Math.max(1, Math.round(width));
+          canvas.height = Math.max(1, Math.round(height));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          const preview = canvas.toDataURL('image/jpeg', 0.72);
+          const preparedFile = await canvasToJpegFile(canvas, file.name);
+          resolve({ preview, preparedFile });
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      img.src = event.target.result;
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function createPendingPhotoCard(fileName) {
+  const wrap = document.createElement('div');
+  wrap.className = 'upload-img-wrap';
+  wrap.style.background = 'rgba(255,255,255,0.03)';
+  wrap.style.border = '1px solid var(--glass-border)';
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.alignItems = 'center';
+  wrap.style.justifyContent = 'center';
+  wrap.style.padding = '8px';
+  wrap.innerHTML = `
+    <div class="loading-spinner" style="width:24px;height:24px;border-width:2px;margin-bottom:8px"></div>
+    <div style="font-size:0.68rem;color:var(--text-muted);text-align:center;line-height:1.35">${fileName}</div>
+  `;
+  return wrap;
+}
+
+function renderPreparedPhotoCard(wrap, preview, index) {
+  wrap.style.background = '';
+  wrap.style.border = '';
+  wrap.style.display = '';
+  wrap.style.flexDirection = '';
+  wrap.style.alignItems = '';
+  wrap.style.justifyContent = '';
+  wrap.style.padding = '';
+  wrap.innerHTML = `<img src="${preview}" alt="upload" />${index === 0 ? '<div style="position:absolute;bottom:4px;left:4px;background:rgba(16,185,129,0.9);color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;font-weight:700">PROFILE</div>' : ''}<button class="remove-img">x</button>`;
+}
+
+async function ensureGuideSession({ name, email, password, phone }) {
+  let session = await withTimeout(
+    getSession(),
+    SESSION_TIMEOUT_MS,
+    'Session check timed out. Please retry.'
+  );
+  if (session) return session;
+
+  setSubmitStatus('Checking whether this account already exists...', 'var(--emerald-400)');
+  setButtonState('Checking account...');
+
+  try {
+    const loginData = await withTimeout(
+      signInEmail({ email, password }),
+      LOGIN_TIMEOUT_MS,
+      'Login timed out. Please try again.'
+    );
+    if (loginData?.session) return loginData.session;
+  } catch (loginError) {
+    if (isEmailConfirmationError(loginError)) {
+      throw new Error('This account exists but is not confirmed yet. Check your email, then log in and submit the guide form again.');
+    }
+    if (!isMissingAccountError(loginError)) {
+      throw loginError;
+    }
+  }
+
+  setSubmitStatus('Creating your guide account...', 'var(--emerald-400)');
+  setButtonState('Creating account...');
+
+  try {
+    const signupData = await withTimeout(
+      signUpEmail({ email, password, fullName: name, phone }),
+      SIGNUP_TIMEOUT_MS,
+      'Sign-up timed out. Please try again in a moment.'
+    );
+
+    if (signupData?.session) return signupData.session;
+
+    session = await withTimeout(
+      getSession(),
+      SESSION_TIMEOUT_MS,
+      'Session refresh timed out. Please retry.'
+    );
+    if (session) return session;
+
+    setSubmitStatus('Finishing sign-in...', 'var(--emerald-400)');
+    setButtonState('Finishing sign-in...');
+    const loginAfterSignup = await withTimeout(
+      signInEmail({ email, password }),
+      LOGIN_TIMEOUT_MS,
+      'Login timed out. Please try again.'
+    );
+    if (loginAfterSignup?.session) return loginAfterSignup.session;
+  } catch (signupError) {
+    if (isExistingAccountError(signupError)) {
+      setSubmitStatus('Account already exists. Signing you in...', 'var(--emerald-400)');
+      setButtonState('Signing you in...');
+      const existingLogin = await withTimeout(
+        signInEmail({ email, password }),
+        LOGIN_TIMEOUT_MS,
+        'Login timed out. Please try again.'
+      );
+      if (existingLogin?.session) return existingLogin.session;
+    }
+
+    if (isRateLimitError(signupError)) {
+      throw new Error('Too many signup emails were requested. Please wait a few minutes, or log in first and then submit the guide form.');
+    }
+
+    if (isEmailConfirmationError(signupError)) {
+      throw new Error('Your account needs email confirmation before guide registration can continue. Confirm the email, log in, then submit again.');
+    }
+
+    throw signupError;
+  }
+
+  throw new Error('We could not create an active login session for this guide application. Please log in first, then submit the guide form again.');
 }
 
 export function renderHostSignupGuide() {
@@ -109,6 +341,10 @@ export function renderHostSignupGuide() {
             <div style="font-size:0.8rem;color:var(--text-dim)">First photo = profile photo • JPG or PNG</div>
             <input type="file" id="g-photos" multiple accept="image/*" style="display:none" />
           </div>
+          <div id="g-photo-loader" style="display:none;align-items:center;gap:12px;margin-top:12px;padding:12px 14px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.18);border-radius:12px">
+            <div class="loading-spinner" style="width:22px;height:22px;border-width:2px;margin:0"></div>
+            <div id="g-photo-loader-text" style="font-size:0.85rem;color:var(--emerald-300)">Preparing photos...</div>
+          </div>
           <div id="g-photo-status" class="form-hint" style="margin-top:10px">No photos selected yet.</div>
           <div class="upload-preview" id="g-photo-preview" style="margin-top:12px"></div>
 
@@ -118,6 +354,7 @@ export function renderHostSignupGuide() {
           </label>
 
           <button class="btn btn-primary w-full" id="submit-guide-btn" style="justify-content:center;padding:16px;font-size:1rem">Submit Guide Application 🧭</button>
+          <div id="g-submit-status" class="form-hint" style="margin-top:12px;text-align:center">Ready to submit your guide profile.</div>
         </div>
       </div>
     </div>
@@ -127,53 +364,49 @@ export function renderHostSignupGuide() {
 export function initHostSignupGuide() {
   uploadedImages = [];
   uploadedFiles  = [];
-  setPhotoStatus('No photos selected yet.');
+  pendingPhotoTasks = 0;
+  setPhotoLoader(false);
+  syncPhotoIndicators();
+  setSubmitStatus('Ready to submit your guide profile.');
 
   // ── Photo picker ─────────────────────────────────────────────
-  document.getElementById('g-photos')?.addEventListener('change', e => {
+  document.getElementById('g-photos')?.addEventListener('change', async e => {
     const incomingFiles = [...e.target.files];
     if (!incomingFiles.length) return;
 
-    setPhotoStatus(`Preparing ${incomingFiles.length} photo(s)...`, 'var(--emerald-400)');
-    incomingFiles.forEach(file => {
+    const previewRoot = document.getElementById('g-photo-preview');
+    pendingPhotoTasks += incomingFiles.length;
+    syncPhotoIndicators();
+
+    incomingFiles.forEach(async file => {
       const idx = uploadedFiles.length;
-      uploadedFiles.push(file);
+      uploadedFiles.push(null);
+      uploadedImages[idx] = null;
 
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let { width, height } = img;
-          const MAX = 800;
-          if (width > height && width > MAX) { height *= MAX / width; width = MAX; }
-          else if (height > MAX)             { width  *= MAX / height; height = MAX; }
-          canvas.width = width; canvas.height = height;
-          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-          const preview = canvas.toDataURL('image/jpeg', 0.7);
-          uploadedImages[idx] = preview;
+      const wrap = createPendingPhotoCard(file.name);
+      previewRoot?.appendChild(wrap);
 
-          const wrap = document.createElement('div');
-          wrap.className = 'upload-img-wrap';
-          wrap.innerHTML = `<img src="${preview}" alt="upload" />${idx === 0 ? '<div style="position:absolute;bottom:4px;left:4px;background:rgba(16,185,129,0.9);color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;font-weight:700">PROFILE</div>' : ''}<button class="remove-img">✕</button>`;
-          document.getElementById('g-photo-preview')?.appendChild(wrap);
-          wrap.querySelector('.remove-img')?.addEventListener('click', () => {
-            uploadedImages.splice(idx, 1, null);
-            uploadedFiles.splice(idx, 1, null);
-            wrap.remove();
-            const remaining = getSelectedPhotoCount();
-            setPhotoStatus(
-              remaining ? `${remaining} photo(s) selected.` : 'No photos selected yet.',
-              remaining ? 'var(--emerald-400)' : 'var(--text-muted)'
-            );
-          });
+      try {
+        const { preview, preparedFile } = await prepareImageForUpload(file);
+        uploadedImages[idx] = preview;
+        uploadedFiles[idx] = preparedFile;
 
-          const selected = getSelectedPhotoCount();
-          setPhotoStatus(`${selected} photo(s) selected.`, 'var(--emerald-400)');
-        };
-        img.src = ev.target.result;
-      };
-      reader.readAsDataURL(file);
+        renderPreparedPhotoCard(wrap, preview, idx);
+        wrap.querySelector('.remove-img')?.addEventListener('click', () => {
+          uploadedImages[idx] = null;
+          uploadedFiles[idx] = null;
+          wrap.remove();
+          syncPhotoIndicators();
+        });
+      } catch (error) {
+        uploadedImages[idx] = null;
+        uploadedFiles[idx] = null;
+        wrap.remove();
+        showToast(error.message || `Could not prepare ${file.name}.`, '', 'error');
+      } finally {
+        pendingPhotoTasks = Math.max(0, pendingPhotoTasks - 1);
+        syncPhotoIndicators();
+      }
     });
   });
 
@@ -197,51 +430,18 @@ export function initHostSignupGuide() {
       showToast('Please fill all required fields', '', 'error'); return;
     }
     if (!agree) { showToast('Please agree to the Guide Terms', '', 'error'); return; }
+    if (getPendingPhotoCount() > 0) {
+      showToast('Please wait for photos to finish preparing.', '', 'error');
+      return;
+    }
 
-    const btn = document.getElementById('submit-guide-btn');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Submitting…'; }
+    setButtonState('Submitting...');
+    setSubmitStatus('Starting guide registration...', 'var(--emerald-400)');
 
     try {
-      const { supabase } = await import('../lib/supabase.js');
+      await ensureGuideSession({ name, email, password, phone });
 
-      // ── 1. Auth ───────────────────────────────────────────────
-      const { data: { session } } = await withTimeout(
-        supabase.auth.getSession(),
-        SESSION_TIMEOUT_MS,
-        'Session check timed out. Please retry.'
-      );
-      console.log('[Guide] session check:', session ? 'logged in' : 'no session');
-
-      if (!session) {
-        console.log('[Guide] attempting signUp...');
-        const { data, error } = await withTimeout(
-          supabase.auth.signUp({
-            email, password, options: { data: { full_name: name } },
-          }),
-          SIGNUP_TIMEOUT_MS,
-          'Sign-up timed out. Please try again in a moment.'
-        );
-        if (error) {
-          console.error('[Guide] signUp error:', error);
-          throw error;
-        }
-        console.log('[Guide] signUp response:', data);
-
-        const { data: fresh } = await withTimeout(
-          supabase.auth.getSession(),
-          SESSION_TIMEOUT_MS,
-          'Session refresh timed out. Please log in and retry.'
-        );
-        console.log('[Guide] post-signup session:', fresh.session ? 'exists' : 'null');
-
-        if (!fresh.session) {
-          throw new Error('Account created — please check your email to confirm your account, then log in and re-submit.');
-        }
-        if (data.user) {
-          await supabase.from('profiles').upsert({ id: data.user.id, full_name: name, phone, role: 'user' });
-        }
-      }
-
+      setSubmitStatus('Loading your account...', 'var(--emerald-400)');
       await refreshUserCache();
 
       // ── 2. Upload images (best-effort, never blocks submit) ───
@@ -249,22 +449,27 @@ export function initHostSignupGuide() {
       let imageUrls = [];
 
       if (validFiles.length > 0) {
-        if (btn) btn.textContent = '📤 Uploading photos…';
-        setPhotoStatus(`Uploading ${validFiles.length} photo(s)...`, 'var(--emerald-400)');
-        console.log('[Guide] uploading', validFiles.length, 'images...');
+        setButtonState('Uploading photos...');
+        setSubmitStatus(`Uploading ${validFiles.length} photo(s)...`, 'var(--emerald-400)');
+        setPhotoLoader(true, `Uploading 1 of ${validFiles.length} photo(s)...`);
 
-        // Each image gets 15s before we skip it
-        const uploadOne = (file) => Promise.race([
-          uploadFileToStorage(file, 'guide-images').catch(err => {
-            console.warn('[Guide] image upload failed (skipping):', err.message);
-            return null;
-          }),
-          new Promise(res => setTimeout(() => { console.warn('[Guide] upload timeout, skipping image'); res(null); }, UPLOAD_TIMEOUT_MS)),
-        ]);
+        for (const [index, file] of validFiles.entries()) {
+          setPhotoLoader(true, `Uploading ${index + 1} of ${validFiles.length} photo(s)...`);
+          const result = await Promise.race([
+            uploadFileToStorage(file, 'guide-images').catch(err => {
+              console.warn('[Guide] image upload failed (skipping):', err.message);
+              return null;
+            }),
+            new Promise(res => setTimeout(() => {
+              console.warn('[Guide] upload timeout, skipping image');
+              res(null);
+            }, UPLOAD_TIMEOUT_MS)),
+          ]);
 
-        const results = await Promise.all(validFiles.map(uploadOne));
-        imageUrls = results.filter(Boolean);
-        console.log('[Guide] uploaded imageUrls:', imageUrls);
+          if (result) imageUrls.push(result);
+        }
+
+        setPhotoLoader(false);
         setPhotoStatus(
           imageUrls.length === validFiles.length
             ? `${imageUrls.length} photo(s) uploaded successfully.`
@@ -273,10 +478,10 @@ export function initHostSignupGuide() {
         );
       }
 
-      if (btn) btn.textContent = '💾 Saving profile…';
+      setButtonState('Saving profile...');
+      setSubmitStatus('Saving your guide profile...', 'var(--emerald-400)');
 
       // ── 3. Insert guide row ───────────────────────────────────
-      console.log('[Guide] inserting guide row...');
       await withTimeout(
         insertGuide({
           name, title, experience, languages, specialties,
@@ -290,33 +495,21 @@ export function initHostSignupGuide() {
         SAVE_TIMEOUT_MS,
         'Saving guide profile timed out. Please retry.'
       );
-      console.log('[Guide] success!');
 
+      setSubmitStatus('Guide profile created successfully.', 'var(--emerald-400)');
       showToast('Guide application live! 🎉', 'Your profile is now visible to travellers.');
       setTimeout(() => window.router.navigate('/host-dashboard'), 800);
 
     } catch (e) {
       console.error('[Guide Signup] ERROR:', e);
+      setPhotoLoader(false);
       if (isTimeoutError(e)) {
-        try {
-          const { supabase } = await import('../lib/supabase.js');
-          const { data: existing } = await supabase
-            .from('guides')
-            .select('id')
-            .eq('email', email)
-            .eq('phone', phone)
-            .limit(1);
-          if (existing?.length) {
-            showToast('Guide application submitted', 'Your profile was saved. Redirecting to dashboard.');
-            setTimeout(() => window.router.navigate('/host-dashboard'), 800);
-            return;
-          }
-        } catch (checkErr) {
-          console.warn('[Guide Signup] timeout verification failed:', checkErr?.message || checkErr);
-        }
+        setSubmitStatus('The request took too long. Please retry in a moment.', '#f87171');
+      } else {
+        setSubmitStatus(e.message || 'Guide registration failed.', '#f87171');
       }
       showToast(e.message || 'Submission failed. Please try again.', '', 'error');
-      if (btn) { btn.disabled = false; btn.textContent = 'Submit Guide Application 🧭'; }
+      setButtonState('Submit Guide Application 🧭', false);
     }
   });
 }
