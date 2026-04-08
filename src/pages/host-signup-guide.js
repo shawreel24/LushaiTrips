@@ -672,9 +672,6 @@ export function initHostSignupGuide() {
         'Saving guide profile timed out. Please retry.'
       );
 
-      refreshUserCache().catch(error => {
-        console.warn('[Guide Signup] background cache refresh failed:', error?.message || error);
-      });
       setSubmitStatus('Guide profile created successfully.', 'var(--emerald-400)');
       showToast('Guide application live! 🎉', 'Your profile is now visible to travellers.');
       setTimeout(() => window.router.navigate('/host-dashboard'), 800);
