@@ -1,5 +1,5 @@
 import { getSession, insertGuide, signInEmail, supabase, uploadFileToStorage } from '../lib/supabase.js';
-import { refreshUserCache, showToast } from '../utils.js';
+import { getCurrentUser, refreshUserCache, showToast } from '../utils.js';
 
 let uploadedImages = []; // base64 previews for display only
 let uploadedFiles  = []; // prepared File objects for actual upload
@@ -200,12 +200,39 @@ async function verifyExistingGuideSubmission(email, phone) {
 }
 
 async function ensureGuideSession({ name, email, password, phone }) {
-  let session = await withTimeout(
-    getSession(),
-    SESSION_TIMEOUT_MS,
-    'Session check timed out. Please retry.'
-  );
+  let session = null;
+  try {
+    session = await withTimeout(
+      getSession(),
+      SESSION_TIMEOUT_MS,
+      'Session check timed out. Please retry.'
+    );
+  } catch (sessionError) {
+    if (!isTimeoutError(sessionError)) throw sessionError;
+    console.warn('[Guide Signup] session check timed out, falling back to direct sign-in flow.');
+  }
+
   if (session) return session;
+
+  const cachedUser = getCurrentUser();
+  if (cachedUser?.email && cachedUser.email.toLowerCase() === email.toLowerCase()) {
+    setSubmitStatus('Restoring your login session...', 'var(--emerald-400)');
+    setButtonState('Restoring session...');
+
+    try {
+      const loginData = await withTimeout(
+        signInEmail({ email, password }),
+        LOGIN_TIMEOUT_MS,
+        'Login timed out. Please try again.'
+      );
+      if (loginData?.session) return loginData.session;
+    } catch (loginError) {
+      if (isEmailConfirmationError(loginError)) {
+        throw new Error('This account exists but is not confirmed yet. Check your email, then log in and submit the guide form again.');
+      }
+      console.warn('[Guide Signup] cached-user session restore failed:', loginError?.message || loginError);
+    }
+  }
 
   setSubmitStatus('Checking whether this account already exists...', 'var(--emerald-400)');
   setButtonState('Checking account...');
