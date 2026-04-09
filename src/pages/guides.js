@@ -1,11 +1,10 @@
 import { guides as fallbackGuides } from '../data/services.js';
 import { fetchGuideById, fetchGuides } from '../lib/supabase.js';
-import { appHref, starsHTML, storage } from '../utils.js';
+import { appHref, starsHTML } from '../utils.js';
 
 const guideCache = new Map();
 const GUIDE_PLACEHOLDER = 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&q=80';
 const GUIDE_FETCH_TIMEOUT_MS = 6000;
-const RECENT_GUIDES_STORAGE_KEY = 'lt_recent_guides';
 
 function withTimeout(promise, ms, message) {
   let timer;
@@ -48,34 +47,13 @@ function normalizeGuide(guide) {
 }
 
 function rememberGuides(list) {
+  guideCache.clear();
   list.forEach(guide => guideCache.set(guide.id, guide));
   return list;
 }
 
-function getRecentGuides() {
-  const recentGuides = storage.get(RECENT_GUIDES_STORAGE_KEY);
-  return Array.isArray(recentGuides) ? recentGuides : [];
-}
-
-function mergeGuides(...collections) {
-  const merged = [];
-  const seen = new Set();
-
-  collections.flat().filter(Boolean).forEach(guide => {
-    if (!guide?.id || seen.has(guide.id)) return;
-    seen.add(guide.id);
-    merged.push(normalizeGuide(guide));
-  });
-
-  return merged;
-}
-
 function getFallbackGuide(id) {
   return fallbackGuides.find(guide => guide.id === id) || null;
-}
-
-function getRecentGuideById(id) {
-  return getRecentGuides().find(guide => guide.id === id) || null;
 }
 
 function renderGuideCard(guide) {
@@ -190,7 +168,7 @@ function attachGuideCardLinks(grid) {
 
 export function renderGuides() {
   const H = appHref;
-  const previewGuides = mergeGuides(getRecentGuides(), fallbackGuides);
+  const previewGuides = fallbackGuides.map(normalizeGuide);
   return `
     <section class="page-hero">
       <div class="container">
@@ -219,7 +197,6 @@ export async function initGuides() {
   const grid = document.getElementById('guides-grid');
   if (!grid) return;
 
-  const recentGuides = getRecentGuides();
   let normalizedGuides = [];
   try {
     const rows = await withTimeout(
@@ -227,13 +204,13 @@ export async function initGuides() {
       GUIDE_FETCH_TIMEOUT_MS,
       'Guide list request timed out.'
     );
-    normalizedGuides = rememberGuides(mergeGuides(rows, recentGuides));
+    normalizedGuides = rememberGuides(rows.map(normalizeGuide));
   } catch (error) {
     console.warn('[guides] falling back to static data:', error.message);
   }
 
   if (!normalizedGuides.length) {
-    normalizedGuides = rememberGuides(mergeGuides(recentGuides, fallbackGuides));
+    normalizedGuides = rememberGuides(fallbackGuides.map(normalizeGuide));
   }
 
   if (!normalizedGuides.length) {
@@ -260,28 +237,22 @@ export async function initGuideDetail(id) {
   const root = document.getElementById('guide-detail-root');
   if (!root) return;
 
-  let guide = guideCache.get(id) || null;
-  if (!guide) {
-    try {
-      const row = await withTimeout(
-        fetchGuideById(id),
-        GUIDE_FETCH_TIMEOUT_MS,
-        'Guide profile request timed out.'
-      );
-      if (row) guide = normalizeGuide(row);
-    } catch (error) {
-      console.warn('[guide-detail] falling back to static data:', error.message);
-    }
+  let guide = null;
+
+  try {
+    const row = await withTimeout(
+      fetchGuideById(id),
+      GUIDE_FETCH_TIMEOUT_MS,
+      'Guide profile request timed out.'
+    );
+    if (row) guide = normalizeGuide(row);
+  } catch (error) {
+    console.warn('[guide-detail] falling back to static data:', error.message);
   }
 
   if (!guide) {
     const fallback = getFallbackGuide(id);
     if (fallback) guide = normalizeGuide(fallback);
-  }
-
-  if (!guide) {
-    const recentGuide = getRecentGuideById(id);
-    if (recentGuide) guide = normalizeGuide(recentGuide);
   }
 
   if (!guide) {
