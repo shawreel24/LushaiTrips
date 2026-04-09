@@ -7,6 +7,7 @@ const TRANSPORT_PLACEHOLDER = 'https://images.unsplash.com/photo-1449965408869-e
 const TRANSPORT_FETCH_TIMEOUT_MS = 6000;
 const RECENT_TRANSPORT_STORAGE_KEY = 'lt_recent_transport';
 const HIDDEN_TRANSPORT_IDS = new Set(['transport-raj']);
+const HIDDEN_TRANSPORT_NAMES = new Set(['raj mizoram travels', 'grace travels']);
 
 function withTimeout(promise, ms, message) {
   let timer;
@@ -57,8 +58,23 @@ function normalizeTransport(item) {
   };
 }
 
+function normalizeTransportName(name = '') {
+  return String(name).trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 function isVisibleTransport(item) {
-  return !!item?.id && !HIDDEN_TRANSPORT_IDS.has(item.id);
+  if (!item?.id) return false;
+  if (HIDDEN_TRANSPORT_IDS.has(item.id)) return false;
+  return !HIDDEN_TRANSPORT_NAMES.has(normalizeTransportName(item.name));
+}
+
+function sanitizeRecentTransport(items) {
+  if (!Array.isArray(items)) return [];
+  const filtered = items.filter(isVisibleTransport);
+  if (filtered.length !== items.length) {
+    storage.set(RECENT_TRANSPORT_STORAGE_KEY, filtered);
+  }
+  return filtered;
 }
 
 function rememberTransport(list) {
@@ -68,8 +84,7 @@ function rememberTransport(list) {
 }
 
 function getRecentTransport() {
-  const recentTransport = storage.get(RECENT_TRANSPORT_STORAGE_KEY);
-  if (!Array.isArray(recentTransport)) return [];
+  const recentTransport = sanitizeRecentTransport(storage.get(RECENT_TRANSPORT_STORAGE_KEY));
   return recentTransport.map(normalizeTransport).filter(isVisibleTransport);
 }
 
