@@ -6,10 +6,14 @@ const HOME_EXCLUDED_IDS = new Set(['lengteng-wildlife']);
 export function renderHome() {
   const H = appHref;
   const featured = destinations.filter(d => !HOME_EXCLUDED_IDS.has(d.id)).slice(0, 6);
+  const heroBackground =
+    destinations.find(d => d.id === 'phawngpui-peak')?.coverImage ||
+    featured[0]?.coverImage ||
+    '';
   return `
     <!-- Hero -->
     <section class="hero">
-      <div class="hero-bg"></div>
+      <div class="hero-bg" style="background-image:linear-gradient(rgba(10,22,40,0.55), rgba(10,22,40,0.78)), url('${heroBackground}')"></div>
       <div class="hero-pattern"></div>
       <div class="hero-glow"></div>
       <div class="hero-glow2"></div>
@@ -22,9 +26,9 @@ export function renderHome() {
           <a href="${H('/discover')}" class="btn btn-secondary btn-lg" data-link>Explore Destinations</a>
         </div>
         <div class="hero-stats">
-          <div class="stat-item"><div class="stat-num">50+</div><div class="stat-label">Destinations</div></div>
-          <div class="stat-item"><div class="stat-num">200+</div><div class="stat-label">Happy Travelers</div></div>
-          <div class="stat-item"><div class="stat-num">15+</div><div class="stat-label">Verified Hosts</div></div>
+          <div class="stat-item"><div class="stat-num">15+</div><div class="stat-label">Destinations</div></div>
+          <div class="stat-item"><div class="stat-num">50+</div><div class="stat-label">Happy Travelers</div></div>
+          <div class="stat-item"><div class="stat-num">10+</div><div class="stat-label">Verified Hosts</div></div>
           <div class="stat-item"><div class="stat-num">4.8★</div><div class="stat-label">Avg Rating</div></div>
         </div>
       </div>
