@@ -6,6 +6,7 @@ const transportCache = new Map();
 const TRANSPORT_PLACEHOLDER = 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=800&q=80';
 const TRANSPORT_FETCH_TIMEOUT_MS = 6000;
 const RECENT_TRANSPORT_STORAGE_KEY = 'lt_recent_transport';
+const HIDDEN_TRANSPORT_IDS = new Set(['transport-raj']);
 
 function withTimeout(promise, ms, message) {
   let timer;
@@ -56,6 +57,10 @@ function normalizeTransport(item) {
   };
 }
 
+function isVisibleTransport(item) {
+  return !!item?.id && !HIDDEN_TRANSPORT_IDS.has(item.id);
+}
+
 function rememberTransport(list) {
   transportCache.clear();
   list.forEach(item => transportCache.set(item.id, item));
@@ -65,19 +70,20 @@ function rememberTransport(list) {
 function getRecentTransport() {
   const recentTransport = storage.get(RECENT_TRANSPORT_STORAGE_KEY);
   if (!Array.isArray(recentTransport)) return [];
-  return recentTransport.map(normalizeTransport).filter(item => item?.id);
+  return recentTransport.map(normalizeTransport).filter(isVisibleTransport);
 }
 
 function mergeTransportLists(primary, secondary = []) {
   const merged = new Map();
   [...primary, ...secondary].forEach(item => {
-    if (!item?.id || merged.has(item.id)) return;
+    if (!isVisibleTransport(item) || merged.has(item.id)) return;
     merged.set(item.id, item);
   });
   return [...merged.values()];
 }
 
 function getFallbackTransport(id) {
+  if (HIDDEN_TRANSPORT_IDS.has(id)) return null;
   return fallbackTransport.find(item => item.id === id) || null;
 }
 

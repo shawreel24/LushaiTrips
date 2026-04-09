@@ -2,31 +2,6 @@ export const guides = [];
 
 export const transport = [
   {
-    id: 'transport-raj',
-    name: 'Raj Mizoram Travels',
-    owner: 'Rajesh Chhakchhuak',
-    avatar: 'RC',
-    type: 'Car & SUV Rental',
-    vehicles: [
-      { name: 'Toyota Innova Crysta', capacity: 7, price: 3500, priceUnit: 'per day (fuel incl.)' },
-      { name: 'Maruti Ertiga', capacity: 7, price: 2500, priceUnit: 'per day (fuel incl.)' },
-      { name: 'Mahindra Bolero', capacity: 9, price: 3000, priceUnit: 'per day (fuel incl.)' },
-    ],
-    rating: 4.8, reviews: 76,
-    phone: '+91 98765 44444',
-    email: 'raj.travels@lushaitrips.com',
-    location: 'Aizawl (airport pickup available)',
-    coverImage: 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=800&q=80',
-    images: [
-      'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=800&q=80',
-      'https://images.unsplash.com/photo-1502877338535-766e1452684a?w=800&q=80',
-      'https://images.unsplash.com/photo-1532974297617-c0f05fe48bff?w=800&q=80',
-    ],
-    description: 'Raj Mizoram Travels offers reliable, comfortable transport across Mizoram\'s mountain roads with experienced local drivers who know every route. Airport pickup, multi-day hire, and custom itinerary drops available.',
-    features: ['Airport Pickup', 'AC Vehicles', 'Experienced Drivers', 'Night Driving', 'All Districts'],
-    verified: true, available: true,
-  },
-  {
     id: 'transport-zara',
     name: 'Zara Mountain Bikes',
     owner: 'Zaramsanga Colney',

@@ -528,7 +528,7 @@ export function renderHostSignupTransport() {
           <div class="divider-h"></div>
           <h3 style="margin-bottom:24px">Business Details</h3>
 
-          <div class="form-group"><label class="form-label">Business / Service Name *</label><input type="text" class="form-input" id="t-biz" placeholder="e.g. Raj Mizoram Travels" /></div>
+          <div class="form-group"><label class="form-label">Business / Service Name *</label><input type="text" class="form-input" id="t-biz" placeholder="e.g. Aizawl Adventure Transport" /></div>
 
           <div class="form-group">
             <label class="form-label">Service Type *</label>

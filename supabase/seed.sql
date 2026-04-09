@@ -341,15 +341,6 @@ ON CONFLICT (id) DO NOTHING;
 -- ── Transport ─────────────────────────────────────────────────
 INSERT INTO transport (id, name, owner_name, type, vehicles, rating, reviews_count, phone, email, location, cover_image, images, description, features, verified, available, status) VALUES
 
-('transport-raj','Raj Mizoram Travels','Rajesh Chhakchhuak','Car & SUV Rental',
- '[{"name":"Toyota Innova Crysta","capacity":7,"price":3500,"priceUnit":"per day (fuel incl.)"},{"name":"Maruti Ertiga","capacity":7,"price":2500,"priceUnit":"per day (fuel incl.)"},{"name":"Mahindra Bolero","capacity":9,"price":3000,"priceUnit":"per day (fuel incl.)"}]',
- 4.8,76,'+91 98765 44444','raj.travels@lushaitrips.com','Aizawl (airport pickup available)',
- 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=800&q=80',
- '{"https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=800&q=80","https://images.unsplash.com/photo-1502877338535-766e1452684a?w=800&q=80","https://images.unsplash.com/photo-1532974297617-c0f05fe48bff?w=800&q=80"}',
- 'Raj Mizoram Travels offers reliable, comfortable transport across Mizoram''s mountain roads.',
- '{"Airport Pickup","AC Vehicles","Experienced Drivers","Night Driving","All Districts"}',
- true,true,'approved'),
-
 ('transport-zara','Zara Mountain Bikes','Zaramsanga Colney','Motorcycle & Bike Rental',
  '[{"name":"Royal Enfield Himalayan","capacity":2,"price":1800,"priceUnit":"per day"},{"name":"Honda CB350","capacity":2,"price":1400,"priceUnit":"per day"},{"name":"Mountain Bicycle","capacity":1,"price":400,"priceUnit":"per day"}]',
  4.6,38,'+91 87654 55555','zara.bikes@lushaitrips.com','Aizawl',
