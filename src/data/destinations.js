@@ -1,5 +1,5 @@
 // Resolve a local image path relative to the Vite base URL so images work
-// both in local dev (base = '/') and on GitHub Pages (base = '/LushaiTravels/').
+// both in local dev (base = '/') and on GitHub Pages (base = '/LushaiTrips/').
 const base = import.meta.env.BASE_URL.replace(/\/$/, ''); // strip trailing slash
 const img = (path) => `${base}${path}`;
 

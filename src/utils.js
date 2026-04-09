@@ -1,4 +1,5 @@
 // ── Base URL (Vite: '/' in dev, '/LushaiTravels/' on GitHub Pages) ─
+// Base URL (Vite: '/' in dev, '/LushaiTrips/' on GitHub Pages)
 export function appHref(appPath) {
   const path = appPath.startsWith('/') ? appPath : `/${appPath}`;
   if (path === '/') return import.meta.env.BASE_URL;

@@ -6,7 +6,7 @@ This project is built with [Vite](https://vitejs.dev/) and is ready to be deploy
 
 ## Live Demo
 
-[Live Site](https://shawreel24.github.io/LushaiTravels/)
+[Live Site](https://shawreel24.github.io/LushaiTrips/)
 
 ## Features
 
@@ -43,8 +43,8 @@ This project is built with [Vite](https://vitejs.dev/) and is ready to be deploy
 ### 1) Clone the repository
 
 ```bash
-git clone https://github.com/shawreel24/LushaiTravels.git
-cd LushaiTravels
+git clone https://github.com/shawreel24/LushaiTrips.git
+cd LushaiTrips
 ```
 
 ### 2) Install dependencies
@@ -81,13 +81,13 @@ Create `vite.config.js` in the project root:
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  base: "/LushaiTravels/",
+  base: "/LushaiTrips/",
 });
 ```
 
 For this repository, use:
 
-`base: "/LushaiTravels/"`
+`base: "/LushaiTrips/"`
 
 ### Step 2: Add GitHub Actions workflow
 
