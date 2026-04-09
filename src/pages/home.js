@@ -6,10 +6,7 @@ const HOME_EXCLUDED_IDS = new Set(['lengteng-wildlife']);
 export function renderHome() {
   const H = appHref;
   const featured = destinations.filter(d => !HOME_EXCLUDED_IDS.has(d.id)).slice(0, 6);
-  const heroBackground =
-    destinations.find(d => d.id === 'phawngpui-peak')?.coverImage ||
-    featured[0]?.coverImage ||
-    '';
+  const heroBackground = `${import.meta.env.BASE_URL}images/digilife-siaha-2cM78THYc4w-unsplash.jpg`;
   return `
     <!-- Hero -->
     <section class="hero">
