@@ -1,4 +1,4 @@
-import { showToast, setCurrentUser } from '../utils.js';
+import { showToast, setCurrentUser, storage } from '../utils.js';
 
 let uploadedImages = []; // base64 previews for display only
 let uploadedFiles  = []; // prepared File objects for actual upload
@@ -10,6 +10,7 @@ const SAVE_TIMEOUT_MS = 60000;
 const UPLOAD_TIMEOUT_MS = 30000;
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const RECENT_GUIDES_STORAGE_KEY = 'lt_recent_guides';
 
 function withTimeout(promise, ms, message) {
   let timer;
@@ -21,10 +22,6 @@ function withTimeout(promise, ms, message) {
 
 function isTimeoutError(err) {
   return typeof err?.message === 'string' && err.message.toLowerCase().includes('timed out');
-}
-
-function isGuideAlreadySaved(guideRows) {
-  return Array.isArray(guideRows) && guideRows.length > 0;
 }
 
 function getSelectedPhotoCount() {
@@ -237,6 +234,14 @@ async function insertGuideDirect(data, accessToken) {
   return Array.isArray(rows) ? rows[0] : rows;
 }
 
+function cacheRecentGuideSubmission(guide) {
+  if (!guide?.id) return;
+  const existing = storage.get(RECENT_GUIDES_STORAGE_KEY);
+  const recentGuides = Array.isArray(existing) ? existing : [];
+  const deduped = [guide, ...recentGuides.filter(item => item?.id !== guide.id)];
+  storage.set(RECENT_GUIDES_STORAGE_KEY, deduped.slice(0, 8));
+}
+
 function canvasToJpegFile(canvas, originalName = 'guide-photo.jpg') {
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => {
@@ -320,18 +325,19 @@ function renderPreparedPhotoCard(wrap, preview, index) {
   wrap.innerHTML = `<img src="${preview}" alt="upload" />${index === 0 ? '<div style="position:absolute;bottom:4px;left:4px;background:rgba(16,185,129,0.9);color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;font-weight:700">PROFILE</div>' : ''}<button class="remove-img">x</button>`;
 }
 
-async function verifyExistingGuideSubmission(email, phone) {
+async function findExistingGuideSubmission(email, phone) {
   const query = new URLSearchParams({
-    select: 'id',
+    select: '*',
     email: `eq.${email}`,
     phone: `eq.${phone}`,
+    order: 'created_at.desc',
     limit: '1',
   });
   const response = await fetch(`${SUPABASE_URL}/rest/v1/guides?${query.toString()}`, {
     headers: buildSupabaseHeaders(),
   });
   const data = await parseSupabaseJson(response);
-  return isGuideAlreadySaved(data);
+  return Array.isArray(data) ? data[0] || null : null;
 }
 
 async function ensureGuideSession({ name, email, password, phone }) {
@@ -656,7 +662,7 @@ export function initHostSignupGuide() {
 
       // ── 3. Insert guide row ───────────────────────────────────
       currentStage = 'save';
-      await withTimeout(
+      const savedGuide = await withTimeout(
         insertGuideDirect({
           host_id: auth.userId,
           name, title, experience, languages, specialties,
@@ -671,6 +677,7 @@ export function initHostSignupGuide() {
         SAVE_TIMEOUT_MS,
         'Saving guide profile timed out. Please retry.'
       );
+      cacheRecentGuideSubmission(savedGuide);
 
       setSubmitStatus('Guide profile created successfully.', 'var(--emerald-400)');
       showToast('Guide application live! 🎉', 'Your profile is now visible to travellers.');
@@ -681,7 +688,11 @@ export function initHostSignupGuide() {
       setPhotoLoader(false);
       if (isTimeoutError(e)) {
         try {
-          if (currentStage === 'save' && await verifyExistingGuideSubmission(email, phone)) {
+          const existingGuide = currentStage === 'save'
+            ? await findExistingGuideSubmission(email, phone)
+            : null;
+          if (existingGuide) {
+            cacheRecentGuideSubmission(existingGuide);
             setSubmitStatus('Guide profile saved successfully.', 'var(--emerald-400)');
             showToast('Guide application submitted', 'Your profile was saved. Redirecting to dashboard.');
             setTimeout(() => window.router.navigate('/host-dashboard'), 800);
