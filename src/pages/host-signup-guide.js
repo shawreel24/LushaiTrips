@@ -1,3 +1,4 @@
+import { resendSignupConfirmation } from '../lib/supabase.js';
 import { showToast, setCurrentUser, storage } from '../utils.js';
 
 let uploadedImages = []; // base64 previews for display only
@@ -93,6 +94,35 @@ function isEmailConfirmationError(err) {
 function isRateLimitError(err) {
   const message = normalizeErrorMessage(err);
   return message.includes('rate limit') || message.includes('too many requests');
+}
+
+async function resendGuideConfirmationEmail(email) {
+  return withTimeout(
+    resendSignupConfirmation(email),
+    LOGIN_TIMEOUT_MS,
+    'Confirmation email resend timed out. Please try again.'
+  );
+}
+
+async function throwGuideConfirmationError(email) {
+  setSubmitStatus('Resending confirmation email...', 'var(--emerald-400)');
+  setButtonState('Resending confirmation...');
+
+  try {
+    await resendGuideConfirmationEmail(email);
+  } catch (resendError) {
+    if (isRateLimitError(resendError)) {
+      throw new Error('This account exists but is not confirmed yet. We could not resend the confirmation email right now because too many emails were requested. Please wait a few minutes, check spam, then try logging in again.');
+    }
+
+    if (isTimeoutError(resendError)) {
+      throw resendError;
+    }
+
+    throw new Error('This account exists but is not confirmed yet. Check spam or promotions for the original email, then log in and submit the guide form again.');
+  }
+
+  throw new Error('This account exists but is not confirmed yet. We sent a new confirmation email. Check spam or promotions, then log in and submit the guide form again.');
 }
 
 function setButtonState(message, disabled = true) {
@@ -369,7 +399,7 @@ async function ensureGuideSession({ name, email, password, phone }) {
     }
   } catch (loginError) {
     if (isEmailConfirmationError(loginError)) {
-      throw new Error('This account exists but is not confirmed yet. Check your email, then log in and submit the guide form again.');
+      await throwGuideConfirmationError(email);
     }
     if (!isMissingAccountError(loginError)) {
       throw loginError;
@@ -430,7 +460,7 @@ async function ensureGuideSession({ name, email, password, phone }) {
     }
 
     if (isEmailConfirmationError(signupError)) {
-      throw new Error('Your account needs email confirmation before guide registration can continue. Confirm the email, log in, then submit again.');
+      await throwGuideConfirmationError(email);
     }
 
     throw signupError;

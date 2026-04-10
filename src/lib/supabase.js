@@ -135,6 +135,18 @@ export async function signInEmail({ email, password }) {
   return data;
 }
 
+export async function resendSignupConfirmation(email) {
+  const redirectTo = window.location.origin + import.meta.env.BASE_URL;
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email,
+    options: {
+      emailRedirectTo: redirectTo,
+    },
+  });
+  if (error) throw error;
+}
+
 /** Sign in / sign up with Google OAuth */
 export async function signInGoogle() {
   const { error } = await supabase.auth.signInWithOAuth({

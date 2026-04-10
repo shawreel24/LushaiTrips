@@ -1,5 +1,5 @@
 import { loginUser, showToast, appHref, refreshUserCache, setCurrentUser } from '../utils.js';
-import { signInEmail } from '../lib/supabase.js';
+import { resendSignupConfirmation, signInEmail } from '../lib/supabase.js';
 
 const LOGIN_TIMEOUT_MS = 12000;
 const SESSION_TIMEOUT_MS = 5000;
@@ -14,6 +14,13 @@ function withTimeout(promise, ms, message) {
 
 function isTimeoutError(err) {
   return typeof err?.message === 'string' && err.message.toLowerCase().includes('timed out');
+}
+
+function isEmailConfirmationError(err) {
+  return typeof err?.message === 'string' && (
+    err.message.toLowerCase().includes('email not confirmed') ||
+    err.message.toLowerCase().includes('confirm your email')
+  );
 }
 
 function cacheBasicSupabaseUser(user) {
@@ -91,6 +98,25 @@ export function initLogin() {
       setTimeout(() => window.router.navigate('/'), 500);
       return;
     } catch (e) {
+      if (isEmailConfirmationError(e)) {
+        try {
+          await withTimeout(
+            resendSignupConfirmation(email),
+            SESSION_TIMEOUT_MS,
+            'Confirmation email resend timed out. Please try again.'
+          );
+          showToast('Email not confirmed', 'We sent a fresh confirmation email. Check spam or promotions, then try logging in again.', 'error');
+          return;
+        } catch (resendError) {
+          showToast(
+            'Email not confirmed',
+            resendError?.message || 'Check spam or promotions for the confirmation email, then try logging in again.',
+            'error'
+          );
+          return;
+        }
+      }
+
       if (isTimeoutError(e)) {
         try {
           const { getSession } = await import('../lib/supabase.js');
