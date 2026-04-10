@@ -92,8 +92,12 @@ function renderGuideCard(guide) {
   `;
 }
 
+function getGuideGalleryImages(guide) {
+  return [guide.coverImage, ...guide.images].filter((img, index, arr) => img && arr.indexOf(img) === index);
+}
+
 function renderGuideDetailContent(guide) {
-  const gallery = guide.images.slice(1);
+  const gallery = getGuideGalleryImages(guide);
 
   return `
     <div style="padding-top:76px">
@@ -129,7 +133,21 @@ function renderGuideDetailContent(guide) {
             <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--radius);padding:24px">
               <h4 style="margin-bottom:16px">Gallery</h4>
               ${gallery.length
-                ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">${gallery.map((img, index) => `<img src="${img}" alt="${guide.name} ${index + 2}" style="width:100%;height:130px;object-fit:cover;border-radius:var(--radius-sm)" />`).join('')}</div>`
+                ? `
+                  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+                    ${gallery.map((img, index) => `
+                      <button
+                        type="button"
+                        onclick="openGuideLightbox(${index})"
+                        style="padding:0;border:none;background:none;cursor:pointer;overflow:hidden;border-radius:var(--radius-sm);position:relative"
+                        aria-label="Open ${guide.name} gallery image ${index + 1}"
+                      >
+                        <img src="${img}" alt="${guide.name} gallery image ${index + 1}" style="width:100%;height:130px;object-fit:cover;display:block;transition:transform 0.3s ease" />
+                        ${index === 0 ? `<span style="position:absolute;left:10px;bottom:10px;background:rgba(15,23,42,0.82);color:#fff;padding:4px 8px;border-radius:999px;font-size:0.72rem;font-weight:700">Profile</span>` : ''}
+                      </button>
+                    `).join('')}
+                  </div>
+                `
                 : `<div style="font-size:0.9rem;color:var(--text-muted)">Photos will appear here after the guide uploads them.</div>`}
             </div>
           </div>
@@ -155,6 +173,13 @@ function renderGuideDetailContent(guide) {
             </div>
           </div>
         </div>
+      </div>
+
+      <div class="lightbox" id="guide-lightbox">
+        <button class="lightbox-close" id="guide-lb-close">✕</button>
+        <button class="lightbox-prev" id="guide-lb-prev">‹</button>
+        <img id="guide-lb-img" src="" alt="Guide gallery" />
+        <button class="lightbox-next" id="guide-lb-next">›</button>
       </div>
     </div>
   `;
@@ -267,6 +292,35 @@ export async function initGuideDetail(id) {
 
   guideCache.set(guide.id, guide);
   root.outerHTML = renderGuideDetailContent(guide);
+
+  const gallery = getGuideGalleryImages(guide);
+  let currentIdx = 0;
+
+  window.openGuideLightbox = (idx) => {
+    currentIdx = idx;
+    const imgEl = document.getElementById('guide-lb-img');
+    if (imgEl) imgEl.src = gallery[currentIdx];
+    document.getElementById('guide-lightbox')?.classList.add('open');
+  };
+
+  document.getElementById('guide-lb-close')?.addEventListener('click', () => {
+    document.getElementById('guide-lightbox')?.classList.remove('open');
+  });
+  document.getElementById('guide-lb-prev')?.addEventListener('click', () => {
+    currentIdx = (currentIdx - 1 + gallery.length) % gallery.length;
+    const imgEl = document.getElementById('guide-lb-img');
+    if (imgEl) imgEl.src = gallery[currentIdx];
+  });
+  document.getElementById('guide-lb-next')?.addEventListener('click', () => {
+    currentIdx = (currentIdx + 1) % gallery.length;
+    const imgEl = document.getElementById('guide-lb-img');
+    if (imgEl) imgEl.src = gallery[currentIdx];
+  });
+  document.getElementById('guide-lightbox')?.addEventListener('click', (event) => {
+    if (event.target?.id === 'guide-lightbox') {
+      document.getElementById('guide-lightbox')?.classList.remove('open');
+    }
+  });
 
   const today = new Date().toISOString().split('T')[0];
   const dateEl = document.getElementById('guide-date');
