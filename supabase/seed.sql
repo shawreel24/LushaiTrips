@@ -1,18 +1,15 @@
 -- ═══════════════════════════════════════════════════════════════
---  LushaiTravels — RESET + SEED (All-in-one)
---  Drops all listing tables and recreates them, then inserts seed data.
---  Safe to run multiple times. All 12 destinations are included.
+--  LushaiTravels — SEED ONLY
+--  Inserts destination seed data.
+--  Safe to run multiple times via ON CONFLICT DO UPDATE.
 -- ═══════════════════════════════════════════════════════════════
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ── Drop old tables (does NOT touch profiles/auth) ────────────
-DROP TABLE IF EXISTS reviews   CASCADE;
-DROP TABLE IF EXISTS bookings  CASCADE;
-DROP TABLE IF EXISTS transport CASCADE;
-DROP TABLE IF EXISTS guides    CASCADE;
-DROP TABLE IF EXISTS stays     CASCADE;
-DROP TABLE IF EXISTS destinations CASCADE;
+-- ── WARNING ───────────────────────────────────────────────────
+-- Do NOT use DROP TABLE in production as it wipes user data.
+-- If you need to clear tables, use TRUNCATE instead.
+-- ──────────────────────────────────────────────────────────────
 
 -- ═══════════════════════════════════════════════
 --  TABLE: destinations
