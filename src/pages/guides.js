@@ -4,8 +4,7 @@ import { appHref, starsHTML } from '../utils.js';
 
 const guideCache = new Map();
 const GUIDE_PLACEHOLDER = 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&q=80';
-const GUIDE_FETCH_TIMEOUT_MS = 6000;
-const HIDDEN_GUIDE_IDS = new Set(['guide-zova', 'guide-mary', 'guide-rema']);
+const GUIDE_FETCH_TIMEOUT_MS = 10000;
 
 function withTimeout(promise, ms, message) {
   let timer;
@@ -48,7 +47,7 @@ function normalizeGuide(guide) {
 }
 
 function isVisibleGuide(guide) {
-  return !!guide?.id && !HIDDEN_GUIDE_IDS.has(guide.id);
+  return !!guide?.id;
 }
 
 function rememberGuides(list) {
@@ -198,7 +197,6 @@ function attachGuideCardLinks(grid) {
 
 export function renderGuides() {
   const H = appHref;
-  const previewGuides = fallbackGuides.filter(isVisibleGuide).map(normalizeGuide);
   return `
     <section class="page-hero">
       <div class="container">
@@ -210,7 +208,10 @@ export function renderGuides() {
     <section class="section">
       <div class="container">
         <div class="grid-3" id="guides-grid">
-          ${previewGuides.map(renderGuideCard).join('')}
+          <div class="page-loader" style="grid-column:1/-1">
+            <div class="loading-spinner"></div>
+            <div style="color:var(--text-muted)">Loading guides...</div>
+          </div>
         </div>
         <div style="margin-top:60px;background:linear-gradient(135deg,rgba(16,185,129,0.1),rgba(245,158,11,0.05));border:1px solid rgba(16,185,129,0.2);border-radius:var(--radius-xl);padding:48px;text-align:center">
           <div style="font-size:2.5rem;margin-bottom:16px">Guide</div>
@@ -227,28 +228,25 @@ export async function initGuides() {
   const grid = document.getElementById('guides-grid');
   if (!grid) return;
 
-  let normalizedGuides = [];
   try {
     const rows = await withTimeout(
       fetchGuides(),
       GUIDE_FETCH_TIMEOUT_MS,
       'Guide list request timed out.'
     );
-    normalizedGuides = rememberGuides(rows.filter(isVisibleGuide).map(normalizeGuide));
+    const normalized = rememberGuides(rows.filter(isVisibleGuide).map(normalizeGuide));
+
+    if (normalized.length) {
+      grid.innerHTML = normalized.map(renderGuideCard).join('');
+      attachGuideCardLinks(grid);
+      return;
+    }
   } catch (error) {
-    console.warn('[guides] falling back to static data:', error.message);
+    console.warn('[guides] Supabase fetch failed:', error.message);
   }
 
-  if (!normalizedGuides.length) {
-    normalizedGuides = rememberGuides(fallbackGuides.filter(isVisibleGuide).map(normalizeGuide));
-  }
-
-  if (!normalizedGuides.length) {
-    grid.innerHTML = `<div class="page-loader" style="grid-column:1/-1"><div style="color:var(--text-muted)">No guides available yet.</div></div>`;
-    return;
-  }
-
-  grid.innerHTML = normalizedGuides.map(renderGuideCard).join('');
+  // Supabase returned nothing — show empty state
+  grid.innerHTML = `<div class="page-loader" style="grid-column:1/-1"><div style="color:var(--text-muted)">No guides available yet. <a href="${appHref('/host-signup-guide')}" data-link style="color:var(--emerald-400)">Register as the first guide!</a></div></div>`;
   attachGuideCardLinks(grid);
 }
 
