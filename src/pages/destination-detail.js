@@ -2,6 +2,42 @@ import { destinations } from '../data/destinations.js';
 import { stays } from '../data/stays.js';
 import { getReviews, addReview, starsHTML, calcAvgRating, isLoggedIn, getCurrentUser, showToast, isWishlisted, toggleWishlist, appHref } from '../utils.js';
 
+function getInstagramEmbedUrl(url) {
+  if (!url) return '';
+
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.includes('instagram.com')) return '';
+    if (parsed.pathname.endsWith('/embed')) return url;
+
+    const match = parsed.pathname.match(/^\/(reel|p)\/([^/?#]+)/);
+    if (!match) return '';
+
+    return `https://www.instagram.com/${match[1]}/${match[2]}/embed`;
+  } catch {
+    return '';
+  }
+}
+
+function normalizeInstagramReels(reels = [], fallbackTitle = 'Instagram Reel') {
+  return reels
+    .map((reel, index) => {
+      if (typeof reel === 'string') {
+        return { url: reel, title: `${fallbackTitle} ${index + 1}` };
+      }
+
+      return {
+        url: reel?.url || '',
+        title: reel?.title || `${fallbackTitle} ${index + 1}`,
+      };
+    })
+    .map((reel) => ({
+      ...reel,
+      embedUrl: getInstagramEmbedUrl(reel.url),
+    }))
+    .filter((reel) => reel.embedUrl);
+}
+
 export function renderDestinationDetail(id) {
   const H = appHref;
   const dest = destinations.find(d => d.id === id);
@@ -10,6 +46,7 @@ export function renderDestinationDetail(id) {
   const nearbyStays = stays.filter(s => s.location.toLowerCase().includes(dest.district.toLowerCase())).slice(0, 2);
   const reviews = getReviews(`dest-${id}`);
   const avg = calcAvgRating(reviews);
+  const instagramReels = normalizeInstagramReels(dest.instagramReels, `${dest.name} Reel`);
 
   return `
     <!-- Gallery Hero -->
@@ -52,6 +89,25 @@ export function renderDestinationDetail(id) {
           <div class="divider-h"></div>
           <h3 style="margin-bottom:12px">About this Place</h3>
           <p style="margin-bottom:24px">${dest.description}</p>
+
+          ${instagramReels.length ? `
+            <h3 style="margin-bottom:16px">Instagram Reels</h3>
+            <div class="instagram-reels-grid" style="margin-bottom:32px">
+              ${instagramReels.map((reel, index) => `
+                <div class="card instagram-reel-card">
+                  <iframe
+                    class="instagram-reel-frame"
+                    src="${reel.embedUrl}"
+                    title="${reel.title || `${dest.name} Instagram Reel ${index + 1}`}"
+                    loading="lazy"
+                    allowfullscreen
+                    scrolling="no"
+                    frameborder="0"
+                  ></iframe>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
 
           ${dest.quickFacts?.length ? `
             <h3 style="margin-bottom:16px">Quick Facts</h3>

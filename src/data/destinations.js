@@ -280,6 +280,10 @@ export const destinations = [
     highlights: ['Kayaking', 'Fishing', 'Wild camping', 'Gorge walks'],
     bestTime: 'November – March',
     nearbyAttractions: ['Saiha', 'Palak Dil Lake', 'Phawngpui'],
+    instagramReels: ['https://www.instagram.com/reel/DSASkvPEpFI/?igsh=dTNkZ2xoNThsempo',
+      // Paste Instagram Reel URLs here later.
+      // Example: 'https://www.instagram.com/reel/SHORTCODE/'
+    ],
     duration: '2-3 days',
     category: 'adventure',
   },
