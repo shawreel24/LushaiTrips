@@ -5,14 +5,48 @@ export function renderStayDetail(id) {
   return `<div id="stay-detail-container" style="padding-top:76px;min-height:80vh;display:flex;align-items:center;justify-content:center"><div class="spinner" style="font-size:1.5rem">Loading...</div></div>`;
 }
 
-export function initStayDetail(id) {
+export async function initStayDetail(id) {
   const container = document.getElementById('stay-detail-container');
   
-  const stay = stays.find(s => s.id === id);
+  let stay = stays.find(s => s.id === id);
   
   if (!stay) { 
-    container.innerHTML = `<div class="page-hero container"><h1>Stay not found</h1></div>`; 
-    return; 
+    try {
+      const { fetchStayById, supabase } = await import('../lib/supabase.js');
+      const liveStay = await fetchStayById(id);
+      
+      let hostProfile = null;
+      if (liveStay.host_id) {
+        const { data } = await supabase.from('profiles').select('*').eq('id', liveStay.host_id).single();
+        hostProfile = data;
+      }
+      const hostName = hostProfile?.full_name || 'Host';
+      
+      stay = {
+        ...liveStay,
+        maxGuests: liveStay.max_guests,
+        checkIn: liveStay.check_in,
+        checkOut: liveStay.check_out,
+        topRated: liveStay.top_rated,
+        rating: liveStay.rating || 4.5,
+        reviews: liveStay.reviews_count || liveStay.reviews || 0,
+        lat: liveStay.lat || 23.7271,
+        lng: liveStay.lng || 92.7176,
+        coverImage: liveStay.cover_image,
+        images: liveStay.images?.length ? liveStay.images : [liveStay.cover_image || 'https://via.placeholder.com/800'],
+        host: {
+          name: hostName,
+          full_name: hostName,
+          phone: hostProfile?.phone || '+91 00000 00000',
+          avatar: hostName.charAt(0).toUpperCase(),
+          since: new Date(liveStay.created_at || new Date()).getFullYear()
+        }
+      };
+    } catch (e) {
+      console.warn("Could not load live stay:", e);
+      container.innerHTML = `<div class="page-hero container"><h1>Stay not found</h1></div>`; 
+      return; 
+    }
   }
 
   const reviews = getReviews(id);
