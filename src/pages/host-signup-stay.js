@@ -1,14 +1,111 @@
-import { signUpEmail, insertStay, uploadFileToStorage } from '../lib/supabase.js';
+import { insertStay } from '../lib/supabase.js';
 import { refreshUserCache, showToast } from '../utils.js';
 
+// ── Constants ──────────────────────────────────────────────────
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const UPLOAD_TIMEOUT_MS = 30000;
+
+// ── Module-level state ────────────────────────────────────────
 let currentStep = 1;
-const totalSteps = 5;
+const totalSteps = 6;
 const formData = {};
-let uploadedImages = []; // base64 previews for display only
-let uploadedFiles  = []; // prepared File objects for actual upload
+
+// Property-level photos (Step 5)
+let uploadedImages = [];
+let uploadedFiles  = [];
 let pendingPhotoTasks = 0;
 
-const stepLabels = ['Basic Info', 'Property', 'Stay Details', 'Photos', 'Rules & Submit'];
+// Room types (Step 4) — each element: { name, count, price, maxGuests, files: [], images: [], pending: 0 }
+let roomTypes = [];
+
+const stepLabels = ['Basic Info', 'Property', 'Stay Details', 'Room Types', 'Photos', 'Rules & Submit'];
+
+// ── Direct-fetch helpers (same pattern as guide form) ─────────
+
+function buildSupabaseHeaders(accessToken = '') {
+  return accessToken
+    ? { apikey: SUPABASE_ANON, Authorization: `Bearer ${accessToken}` }
+    : { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` };
+}
+
+async function parseSupabaseJson(response) {
+  let data = null;
+  try { data = await response.json(); } catch { data = null; }
+  if (!response.ok) {
+    throw new Error((data && (data.message || data.msg)) || 'Supabase request failed.');
+  }
+  return data;
+}
+
+function getSupabaseStorageKey() {
+  const hostname = new URL(SUPABASE_URL).hostname;
+  const projectRef = hostname.split('.')[0];
+  return `sb-${projectRef}-auth-token`;
+}
+
+function getStoredSession() {
+  try { return JSON.parse(localStorage.getItem(getSupabaseStorageKey())); } catch { return null; }
+}
+
+async function uploadFileToStorageDirect(file, bucket, accessToken) {
+  const ext = file.type.includes('png') ? 'png' : 'jpg';
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${bucket}/${fileName}`;
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      ...buildSupabaseHeaders(accessToken),
+      'Content-Type': file.type,
+      'x-upsert': 'true',
+    },
+    body: file,
+  });
+  await parseSupabaseJson(response);
+  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${fileName}`;
+}
+
+// ── Image preparation ─────────────────────────────────────────
+
+function canvasToJpegFile(canvas, originalName = 'stay-photo.jpg') {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (!blob) { reject(new Error('Could not prepare the selected image.')); return; }
+      const safeBase = originalName.replace(/\.[^.]+$/, '').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'stay-photo';
+      resolve(new File([blob], `${safeBase}.jpg`, { type: 'image/jpeg' }));
+    }, 'image/jpeg', 0.78);
+  });
+}
+
+async function prepareStayImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+    reader.onload = event => {
+      const img = new Image();
+      img.onerror = () => reject(new Error(`Could not process ${file.name}.`));
+      img.onload = async () => {
+        try {
+          const canvas = document.createElement('canvas');
+          let { width, height } = img;
+          const MAX_SIZE = 800;
+          if (width > height && width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+          else if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+          canvas.width = Math.max(1, Math.round(width));
+          canvas.height = Math.max(1, Math.round(height));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          const preview = canvas.toDataURL('image/jpeg', 0.72);
+          const preparedFile = await canvasToJpegFile(canvas, file.name);
+          resolve({ preview, preparedFile });
+        } catch (err) { reject(err); }
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ── Stepper / render ──────────────────────────────────────────
 
 export function renderHostSignupStay() {
   return `
@@ -96,15 +193,10 @@ function buildStep(step) {
       </div>`;
 
     case 3: return `
-      <h3 style="margin-bottom:24px">🛏️ Step 3: Stay Details</h3>
+      <h3 style="margin-bottom:24px">🛎️ Step 3: Stay Details</h3>
       <div class="grid-2">
-        <div class="form-group"><label class="form-label">Number of Rooms *</label><input type="number" class="form-input" id="h-rooms" min="1" max="50" placeholder="e.g. 3" value="${formData.rooms||''}" /></div>
-        <div class="form-group"><label class="form-label">Max Guests *</label><input type="number" class="form-input" id="h-guests" min="1" max="50" placeholder="e.g. 6" value="${formData.maxGuests||''}" /></div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Price per Night (₹) *</label>
-        <input type="number" class="form-input" id="h-price" min="500" placeholder="e.g. 2000" value="${formData.price||''}" />
-        <span class="form-hint">Platform takes 10% commission. You receive 90%.</span>
+        <div class="form-group"><label class="form-label">Check-in Time *</label><input type="time" class="form-input" id="h-checkin" value="${formData.checkIn||'14:00'}" /></div>
+        <div class="form-group"><label class="form-label">Check-out Time *</label><input type="time" class="form-input" id="h-checkout" value="${formData.checkOut||'11:00'}" /></div>
       </div>
       <div class="form-group">
         <label class="form-label">Amenities</label>
@@ -126,25 +218,23 @@ function buildStep(step) {
         <input type="text" class="form-input" id="h-nearby" placeholder="e.g. Vantawng Falls (2 km), Thenzawl market" value="${formData.nearby||''}" />
       </div>`;
 
-    case 4: return `
-      <h3 style="margin-bottom:8px">📸 Step 4: Photos</h3>
-      <p style="color:var(--text-muted);margin-bottom:24px;font-size:0.9rem">High-quality photos get 3× more bookings. Minimum 3 photos required. First photo will be your cover image.</p>
+    case 4: return buildRoomTypesStep();
+
+    case 5: return `
+      <h3 style="margin-bottom:8px">📸 Step 5: Property Photos</h3>
+      <p style="color:var(--text-muted);margin-bottom:24px;font-size:0.9rem">High-quality photos get 3× more bookings. Minimum 3 property photos required. First photo will be your cover image.</p>
       <div class="upload-zone" id="photo-upload-zone" onclick="document.getElementById('photo-input').click()">
         <div style="font-size:2.5rem;margin-bottom:12px">📷</div>
         <div style="font-weight:700;margin-bottom:6px">Upload Property Photos</div>
         <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px">JPG or PNG • Max 5MB each • Minimum 3 required</div>
-        <div style="font-size:0.8rem;color:var(--emerald-400)">💡 Include: exterior, bedroom, bathroom, view, dining area</div>
+        <div style="font-size:0.8rem;color:var(--emerald-400)">💡 Include: exterior, common area, view, dining area</div>
         <input type="file" id="photo-input" multiple accept="image/*" style="display:none" />
       </div>
       <div class="upload-preview" id="photo-preview" style="margin-top:16px"></div>
       <div id="photo-count" style="margin-top:10px;font-size:0.85rem;color:var(--text-muted)">${uploadedImages.length > 0 ? uploadedImages.length + ' photo(s) uploaded' : 'No photos uploaded yet'}</div>`;
 
-    case 5: return `
-      <h3 style="margin-bottom:24px">📜 Step 5: Rules & Submission</h3>
-      <div class="grid-2">
-        <div class="form-group"><label class="form-label">Check-in Time *</label><input type="time" class="form-input" id="h-checkin" value="${formData.checkIn||'14:00'}" /></div>
-        <div class="form-group"><label class="form-label">Check-out Time *</label><input type="time" class="form-input" id="h-checkout" value="${formData.checkOut||'11:00'}" /></div>
-      </div>
+    case 6: return `
+      <h3 style="margin-bottom:24px">📜 Step 6: Rules & Submission</h3>
       <div class="form-group">
         <label class="form-label">House Rules</label>
         <textarea class="form-textarea" id="h-rules" placeholder="e.g. No smoking inside&#10;Quiet hours after 10 PM&#10;No outside guests after 9 PM&#10;Pets on request" style="min-height:120px">${formData.rules||''}</textarea>
@@ -169,9 +259,75 @@ function buildStep(step) {
   }
 }
 
+// ── Room Types Step ───────────────────────────────────────────
+
+function buildRoomTypesStep() {
+  const cards = roomTypes.map((room, idx) => buildRoomCard(room, idx)).join('');
+  return `
+    <h3 style="margin-bottom:8px">🛏️ Step 4: Room Types</h3>
+    <p style="color:var(--text-muted);margin-bottom:24px;font-size:0.9rem">Add at least one room type. Each type can have its own name, pricing, and photos.</p>
+    <div id="room-cards-container">
+      ${cards}
+    </div>
+    <button type="button" class="btn btn-secondary" id="add-room-btn" style="width:100%;justify-content:center;margin-top:12px">
+      + Add Room Type
+    </button>
+  `;
+}
+
+function buildRoomCard(room, idx) {
+  const previewHtml = (room.images || [])
+    .filter(Boolean)
+    .map(src => `<img src="${src}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--glass-border)" />`)
+    .join('');
+
+  return `
+    <div class="card card-body" id="room-card-${idx}" style="margin-bottom:16px;padding:24px;position:relative">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-weight:700;font-size:1rem">Room Type ${idx + 1}</div>
+        ${roomTypes.length > 1 ? `<button type="button" class="btn btn-secondary btn-sm" data-remove-room="${idx}" style="padding:4px 10px;font-size:0.8rem">✕ Remove</button>` : ''}
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Room Name *</label>
+          <input type="text" class="form-input" id="room-name-${idx}" placeholder="e.g. Standard, Deluxe Suite" value="${room.name||''}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Number of Rooms *</label>
+          <input type="number" class="form-input" id="room-count-${idx}" min="1" max="50" placeholder="e.g. 3" value="${room.count||''}" />
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">Price per Night (₹) *</label>
+          <input type="number" class="form-input" id="room-price-${idx}" min="500" placeholder="e.g. 2000" value="${room.price||''}" />
+          <span class="form-hint">Platform takes 10% commission.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max Guests *</label>
+          <input type="number" class="form-input" id="room-guests-${idx}" min="1" max="20" placeholder="e.g. 2" value="${room.maxGuests||''}" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Room Photos <span style="font-size:0.8rem;color:var(--text-dim)">(optional)</span></label>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px" id="room-photo-preview-${idx}">
+          ${previewHtml}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button type="button" class="btn btn-secondary btn-sm" data-room-photo-btn="${idx}">📷 Add Photos</button>
+          <input type="file" id="room-photo-input-${idx}" multiple accept="image/*" style="display:none" />
+          <span id="room-photo-count-${idx}" style="font-size:0.8rem;color:var(--text-muted)">${(room.files||[]).filter(Boolean).length} photo(s)</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Step collection ───────────────────────────────────────────
+
 function collectStep(step) {
   switch (step) {
-    case 1:
+    case 1: {
       formData.name = document.getElementById('h-name')?.value?.trim();
       formData.email = document.getElementById('h-email')?.value?.trim();
       formData.phone = document.getElementById('h-phone')?.value?.trim();
@@ -181,7 +337,8 @@ function collectStep(step) {
       if (formData.password !== confirm) { showToast('Passwords do not match', '', 'error'); return false; }
       if (formData.password.length < 8) { showToast('Password must be 8+ characters', '', 'error'); return false; }
       return true;
-    case 2:
+    }
+    case 2: {
       formData.propName = document.getElementById('h-prop-name')?.value?.trim();
       formData.propType = document.querySelector('input[name="prop-type"]:checked')?.value;
       formData.address = document.getElementById('h-address')?.value?.trim();
@@ -189,28 +346,48 @@ function collectStep(step) {
       formData.mapsLink = document.getElementById('h-maps')?.value?.trim();
       if (!formData.propName || !formData.propType || !formData.address || !formData.district) { showToast('Please fill all required fields', '', 'error'); return false; }
       return true;
-    case 3:
-      formData.rooms = document.getElementById('h-rooms')?.value;
-      formData.maxGuests = document.getElementById('h-guests')?.value;
-      formData.price = document.getElementById('h-price')?.value;
+    }
+    case 3: {
+      formData.checkIn = document.getElementById('h-checkin')?.value;
+      formData.checkOut = document.getElementById('h-checkout')?.value;
       formData.amenities = [...document.querySelectorAll('input[name="amenity"]:checked')].map(el => el.value);
       formData.description = document.getElementById('h-description')?.value?.trim();
       formData.nearby = document.getElementById('h-nearby')?.value?.trim();
-      if (!formData.rooms || !formData.maxGuests || !formData.price || !formData.description) { showToast('Please fill all required fields', '', 'error'); return false; }
+      if (!formData.description) { showToast('Please describe your place', '', 'error'); return false; }
       return true;
-    case 4:
+    }
+    case 4: {
+      // Collect current values from room cards
+      let valid = true;
+      roomTypes.forEach((room, idx) => {
+        room.name = document.getElementById(`room-name-${idx}`)?.value?.trim();
+        room.count = document.getElementById(`room-count-${idx}`)?.value;
+        room.price = document.getElementById(`room-price-${idx}`)?.value;
+        room.maxGuests = document.getElementById(`room-guests-${idx}`)?.value;
+        if (!room.name || !room.count || !room.price || !room.maxGuests) valid = false;
+      });
+      if (!valid) { showToast('Please fill all room type fields', '', 'error'); return false; }
+      if (roomTypes.length === 0) { showToast('Please add at least one room type', '', 'error'); return false; }
+      // Check for any pending room photo tasks
+      const anyPending = roomTypes.some(r => (r.pending || 0) > 0);
+      if (anyPending) { showToast('Please wait for room photos to finish preparing', '', 'error'); return false; }
+      return true;
+    }
+    case 5: {
       if (pendingPhotoTasks > 0) { showToast('Please wait for photos to finish preparing', '', 'error'); return false; }
-      if (uploadedFiles.filter(Boolean).length < 3) { showToast('Please upload at least 3 photos', '', 'error'); return false; }
+      if (uploadedFiles.filter(Boolean).length < 3) { showToast('Please upload at least 3 property photos', '', 'error'); return false; }
       return true;
-    case 5:
-      formData.checkIn = document.getElementById('h-checkin')?.value;
-      formData.checkOut = document.getElementById('h-checkout')?.value;
+    }
+    case 6: {
       formData.rules = document.getElementById('h-rules')?.value?.trim();
       formData.cancellation = document.getElementById('h-cancel')?.value;
       if (!document.getElementById('h-agree')?.checked) { showToast('Please agree to Terms & Conditions', '', 'error'); return false; }
       return true;
+    }
   }
 }
+
+// ── Navigation ────────────────────────────────────────────────
 
 function goToStep(step) {
   currentStep = step;
@@ -222,58 +399,114 @@ function goToStep(step) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function canvasToJpegFile(canvas, originalName = 'stay-photo.jpg') {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(blob => {
-      if (!blob) { reject(new Error('Could not prepare the selected image.')); return; }
-      const safeBase = originalName.replace(/\.[^.]+$/, '').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'stay-photo';
-      resolve(new File([blob], `${safeBase}.jpg`, { type: 'image/jpeg' }));
-    }, 'image/jpeg', 0.78);
-  });
-}
-
-async function prepareStayImage(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
-    reader.onload = event => {
-      const img = new Image();
-      img.onerror = () => reject(new Error(`Could not process ${file.name}.`));
-      img.onload = async () => {
-        try {
-          const canvas = document.createElement('canvas');
-          let { width, height } = img;
-          const MAX_SIZE = 800;
-          if (width > height && width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
-          else if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
-          canvas.width = Math.max(1, Math.round(width));
-          canvas.height = Math.max(1, Math.round(height));
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          const preview = canvas.toDataURL('image/jpeg', 0.72);
-          const preparedFile = await canvasToJpegFile(canvas, file.name);
-          resolve({ preview, preparedFile });
-        } catch (err) { reject(err); }
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
+// ── Step-specific event binding ───────────────────────────────
 
 function syncPhotoCount() {
   const selected = uploadedFiles.filter(Boolean).length;
-  const pending  = pendingPhotoTasks;
   const count = document.getElementById('photo-count');
   if (!count) return;
-  if (pending > 0) {
-    count.textContent = `${selected} photo(s) ready, ${pending} still preparing…`;
+  if (pendingPhotoTasks > 0) {
+    count.textContent = `${selected} photo(s) ready, ${pendingPhotoTasks} still preparing…`;
   } else {
     count.textContent = selected > 0 ? `${selected} photo(s) ready to upload` : 'No photos uploaded yet';
   }
 }
 
+function syncRoomPhotoCount(idx) {
+  const room = roomTypes[idx];
+  if (!room) return;
+  const el = document.getElementById(`room-photo-count-${idx}`);
+  if (!el) return;
+  const ready = (room.files || []).filter(Boolean).length;
+  const pending = room.pending || 0;
+  el.textContent = pending > 0 ? `${ready} ready, ${pending} preparing…` : `${ready} photo(s)`;
+}
+
+function bindRoomPhotoInput(idx) {
+  const btn = document.querySelector(`[data-room-photo-btn="${idx}"]`);
+  const input = document.getElementById(`room-photo-input-${idx}`);
+  if (!btn || !input) return;
+
+  btn.addEventListener('click', () => input.click());
+  input.addEventListener('change', async e => {
+    const incomingFiles = [...e.target.files];
+    if (!incomingFiles.length) return;
+
+    const room = roomTypes[idx];
+    if (!room) return;
+
+    const previewRoot = document.getElementById(`room-photo-preview-${idx}`);
+    room.pending = (room.pending || 0) + incomingFiles.length;
+    syncRoomPhotoCount(idx);
+
+    incomingFiles.forEach(async file => {
+      const fileIdx = (room.files || []).length;
+      if (!room.files) room.files = [];
+      if (!room.images) room.images = [];
+      room.files.push(null);
+      room.images[fileIdx] = null;
+
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;width:72px;height:72px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(255,255,255,0.03)';
+      wrap.innerHTML = `<div class="loading-spinner" style="width:20px;height:20px;border-width:2px"></div>`;
+      previewRoot?.appendChild(wrap);
+
+      try {
+        const { preview, preparedFile } = await prepareStayImage(file);
+        room.images[fileIdx] = preview;
+        room.files[fileIdx] = preparedFile;
+
+        wrap.style.cssText = 'position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--glass-border)';
+        wrap.innerHTML = `<img src="${preview}" style="width:100%;height:100%;object-fit:cover" /><button type="button" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:0.7rem;cursor:pointer;display:flex;align-items:center;justify-content:center" data-room-remove="${idx}-${fileIdx}">✕</button>`;
+        wrap.querySelector(`[data-room-remove]`)?.addEventListener('click', () => {
+          room.images[fileIdx] = null;
+          room.files[fileIdx] = null;
+          wrap.remove();
+          syncRoomPhotoCount(idx);
+        });
+      } catch (err) {
+        room.images[fileIdx] = null;
+        room.files[fileIdx] = null;
+        wrap.remove();
+        showToast(err.message || `Could not prepare ${file.name}.`, '', 'error');
+      } finally {
+        room.pending = Math.max(0, (room.pending || 1) - 1);
+        syncRoomPhotoCount(idx);
+      }
+    });
+  });
+}
+
 function bindStepEvents(step) {
   if (step === 4) {
+    // Bind "Add Room Type" button
+    document.getElementById('add-room-btn')?.addEventListener('click', () => {
+      roomTypes.push({ name: '', count: '', price: '', maxGuests: '', files: [], images: [], pending: 0 });
+      const container = document.getElementById('room-cards-container');
+      if (container) {
+        container.innerHTML = roomTypes.map((r, i) => buildRoomCard(r, i)).join('');
+        roomTypes.forEach((_, i) => bindRoomPhotoInput(i));
+        // Re-bind remove buttons
+        document.querySelectorAll('[data-remove-room]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const removeIdx = parseInt(btn.dataset.removeRoom);
+            roomTypes.splice(removeIdx, 1);
+            container.innerHTML = roomTypes.map((r, i) => buildRoomCard(r, i)).join('');
+            roomTypes.forEach((_, i) => bindRoomPhotoInput(i));
+            bindRemoveRoomButtons(container);
+          });
+        });
+      }
+    });
+
+    // Bind photo inputs for existing rooms
+    roomTypes.forEach((_, i) => bindRoomPhotoInput(i));
+
+    // Bind remove buttons for existing rooms
+    bindRemoveRoomButtons(document.getElementById('room-cards-container'));
+  }
+
+  if (step === 5) {
     document.getElementById('photo-input')?.addEventListener('change', async e => {
       const incomingFiles = [...e.target.files];
       if (!incomingFiles.length) return;
@@ -287,7 +520,6 @@ function bindStepEvents(step) {
         uploadedFiles.push(null);
         uploadedImages[idx] = null;
 
-        // Placeholder card while preparing
         const wrap = document.createElement('div');
         wrap.className = 'upload-img-wrap';
         wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px;background:rgba(255,255,255,0.03);border:1px solid var(--glass-border)';
@@ -321,86 +553,157 @@ function bindStepEvents(step) {
   }
 }
 
+function bindRemoveRoomButtons(container) {
+  if (!container) return;
+  document.querySelectorAll('[data-remove-room]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const removeIdx = parseInt(btn.dataset.removeRoom);
+      roomTypes.splice(removeIdx, 1);
+      container.innerHTML = roomTypes.map((r, i) => buildRoomCard(r, i)).join('');
+      roomTypes.forEach((_, i) => bindRoomPhotoInput(i));
+      bindRemoveRoomButtons(container);
+    });
+  });
+}
+
+// ── Init (called once on page mount) ─────────────────────────
+
 export function initHostSignupStay() {
   uploadedImages = [];
   uploadedFiles  = [];
   pendingPhotoTasks = 0;
-  bindStepEvents(1);
+  roomTypes = [{ name: '', count: '', price: '', maxGuests: '', files: [], images: [], pending: 0 }];
 
+  // Attach nav listeners ONCE — no recursive re-init
   document.getElementById('next-btn')?.addEventListener('click', () => {
     if (!collectStep(currentStep)) return;
     if (currentStep === totalSteps) {
       submitListing();
     } else {
       goToStep(currentStep + 1);
-      // Re-attach listeners after DOM update
-      document.getElementById('next-btn')?.addEventListener('click', () => {});
-      document.getElementById('prev-btn')?.addEventListener('click', () => {});
-      initHostSignupStay();
     }
   });
 
   document.getElementById('prev-btn')?.addEventListener('click', () => {
     if (currentStep > 1) goToStep(currentStep - 1);
   });
+
+  // Bind step 1 events (none currently needed, but keeping pattern consistent)
+  bindStepEvents(1);
 }
+
+// ── Submit ────────────────────────────────────────────────────
 
 async function submitListing() {
   const nextBtn = document.getElementById('next-btn');
   if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = '⏳ Submitting…'; }
+
   try {
     const { supabase } = await import('../lib/supabase.js');
-    const { data: { session } } = await supabase.auth.getSession();
 
-    if (!session) {
-      const { data, error } = await supabase.auth.signUp({ 
-        email: formData.email, password: formData.password, options: { data: { full_name: formData.name } } 
+    // ── 1. Auth: get or create session ────────────────────────
+    // First try stored session (direct-fetch style, same as guide form)
+    let accessToken = getStoredSession()?.access_token || null;
+
+    if (!accessToken) {
+      const { data: { session } } = await supabase.auth.getSession();
+      accessToken = session?.access_token || null;
+    }
+
+    if (!accessToken) {
+      // Sign up or sign in
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: { data: { full_name: formData.name } },
       });
       if (error) throw error;
-      
+
       const { data: newSessionData } = await supabase.auth.getSession();
       if (!newSessionData.session) {
         throw new Error('Email is already registered. Please log in first, or use a different email.');
       }
+      accessToken = newSessionData.session.access_token;
 
       if (data.user) {
-        await supabase.from('profiles').upsert({ id: data.user.id, full_name: formData.name, phone: formData.phone, role: 'user' });
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          full_name: formData.name,
+          phone: formData.phone,
+          role: 'user',
+        });
       }
     }
-    
+
     await refreshUserCache();
 
-    // 2. Upload images to Supabase Storage (exactly like guide form)
+    // ── 2. Upload room type photos ────────────────────────────
+    if (nextBtn) nextBtn.textContent = '⏳ Uploading room photos…';
+
+    const processedRooms = [];
+    for (const [roomIdx, room] of roomTypes.entries()) {
+      const validRoomFiles = (room.files || []).filter(Boolean);
+      let roomImageUrls = [];
+
+      for (const [fileIdx, file] of validRoomFiles.entries()) {
+        if (nextBtn) nextBtn.textContent = `⏳ Room ${roomIdx + 1} photo ${fileIdx + 1}/${validRoomFiles.length}…`;
+        try {
+          const url = await Promise.race([
+            uploadFileToStorageDirect(file, 'stay-images', accessToken),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('upload timeout')), UPLOAD_TIMEOUT_MS)),
+          ]);
+          if (url) roomImageUrls.push(url);
+        } catch (uploadErr) {
+          console.warn('[Stay] room image upload failed (skipping):', uploadErr.message);
+        }
+      }
+
+      processedRooms.push({
+        name:       room.name,
+        count:      parseInt(room.count),
+        price:      parseInt(room.price),
+        max_guests: parseInt(room.maxGuests),
+        images:     roomImageUrls,
+        cover:      roomImageUrls[0] || '',
+      });
+    }
+
+    // ── 3. Upload property-level photos ───────────────────────
     const validFiles = uploadedFiles.filter(Boolean);
     let imageUrls = [];
 
     if (validFiles.length > 0) {
-      if (nextBtn) nextBtn.textContent = `⏳ Uploading photos…`;
+      if (nextBtn) nextBtn.textContent = '⏳ Uploading property photos…';
       for (const [index, file] of validFiles.entries()) {
         if (nextBtn) nextBtn.textContent = `⏳ Uploading ${index + 1}/${validFiles.length}…`;
         try {
           const url = await Promise.race([
-            uploadFileToStorage(file, 'stay-images'),
-            new Promise((_, rej) => setTimeout(() => rej(new Error('upload timeout')), 30000)),
+            uploadFileToStorageDirect(file, 'stay-images', accessToken),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('upload timeout')), UPLOAD_TIMEOUT_MS)),
           ]);
           if (url) imageUrls.push(url);
         } catch (uploadErr) {
-          console.warn('[Stay] image upload failed (skipping):', uploadErr.message);
+          console.warn('[Stay] property image upload failed (skipping):', uploadErr.message);
         }
       }
     }
 
     if (nextBtn) nextBtn.textContent = '⏳ Saving listing…';
 
-    // 3. Insert the stay listing with real storage URLs
+    // ── 4. Derive cheapest room price ─────────────────────────
+    const cheapestPrice = processedRooms.reduce((min, r) => Math.min(min, r.price), Infinity);
+    const totalRooms    = processedRooms.reduce((sum, r) => sum + r.count, 0);
+    const maxGuests     = processedRooms.reduce((max, r) => Math.max(max, r.max_guests), 0);
+
+    // ── 5. Insert the stay listing ────────────────────────────
     await insertStay({
       name:        formData.propName,
       type:        formData.propType,
       location:    formData.address,
       district:    formData.district,
-      price:       parseInt(formData.price),
-      rooms:       parseInt(formData.rooms),
-      max_guests:  parseInt(formData.maxGuests),
+      price:       cheapestPrice === Infinity ? 0 : cheapestPrice,
+      rooms:       totalRooms,
+      max_guests:  maxGuests,
       amenities:   formData.amenities || [],
       description: formData.description,
       images:      imageUrls,
@@ -408,13 +711,17 @@ async function submitListing() {
       check_in:    formData.checkIn,
       check_out:   formData.checkOut,
       rules:       formData.rules?.split('\n').filter(Boolean) || [],
+      room_types:  processedRooms,
       verified:    true,
       top_rated:   false,
     });
 
+    // Reset on success
     currentStep = 1;
     uploadedImages = [];
     uploadedFiles  = [];
+    roomTypes = [];
+
     showToast('Listing live! 🎉', 'Your stay is now visible to travellers.');
     setTimeout(() => window.router.navigate('/host-dashboard'), 800);
   } catch (e) {
@@ -422,4 +729,3 @@ async function submitListing() {
     if (nextBtn) { nextBtn.disabled = false; nextBtn.textContent = '🚀 Submit Listing'; }
   }
 }
-

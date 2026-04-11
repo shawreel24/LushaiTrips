@@ -72,6 +72,8 @@ export function initStayDetail(id) {
             }).join('')}
           </div>
 
+          ${buildRoomTypesSection(stay)}
+
           <h3 style="margin-bottom:16px">📅 Availability & Rules</h3>
           <div class="grid-2" style="margin-bottom:32px">
             <div class="card card-body">
@@ -120,9 +122,10 @@ export function initStayDetail(id) {
         <!-- RIGHT: Booking Widget -->
         <div>
           <div class="booking-widget">
-            <div class="booking-price">
-              <span class="price" style="font-size:1.6rem">₹${stay.price.toLocaleString()}</span>
+            <div class="booking-price" id="booking-price-block">
+              <span class="price" style="font-size:1.6rem" id="booking-price-display">₹${stay.price.toLocaleString()}</span>
               <span style="color:var(--text-muted)">/night</span>
+              <div id="booking-room-label" style="font-size:0.8rem;color:var(--emerald-400);margin-top:2px"></div>
               <div style="display:flex;gap:4px;margin-top:6px">${starsHTML(avg > 0 ? avg : stay.rating)} <span style="font-size:0.85rem;color:var(--text-muted)">${reviews.length || stay.reviews} reviews</span></div>
             </div>
             <div class="booking-dates">
@@ -165,14 +168,23 @@ export function initStayDetail(id) {
   if (checkinEl) checkinEl.value = toISO(today);
   if (checkoutEl) checkoutEl.value = toISO(tomorrow);
 
+
+
+  // Book now — mutable selected price so room selection can update it
+  let selectedPrice = stay.price;
+
+  const updatePriceDisplay = () => {
+    document.getElementById('booking-price-display').textContent = `₹${selectedPrice.toLocaleString()}`;
+  };
+
   const updatePrice = () => {
     const ci = new Date(checkinEl?.value); const co = new Date(checkoutEl?.value);
     const nights = Math.max(1, Math.round((co - ci) / 86400000));
-    const total = nights * stay.price;
+    const total = nights * selectedPrice;
     const breakdown = document.getElementById('price-breakdown');
     if (breakdown) breakdown.innerHTML = `
       <div style="display:flex;justify-content:space-between;font-size:0.9rem;color:var(--text-muted);margin-bottom:6px">
-        <span>₹${stay.price.toLocaleString()} × ${nights} night${nights > 1 ? 's' : ''}</span><span>₹${(nights * stay.price).toLocaleString()}</span>
+        <span>₹${selectedPrice.toLocaleString()} × ${nights} night${nights > 1 ? 's' : ''}</span><span>₹${(nights * selectedPrice).toLocaleString()}</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:0.9rem;color:var(--text-muted);margin-bottom:6px">
         <span>Service fee</span><span>₹${Math.round(total * 0.05).toLocaleString()}</span>
@@ -187,22 +199,50 @@ export function initStayDetail(id) {
   checkinEl?.addEventListener('change', updatePrice);
   checkoutEl?.addEventListener('change', updatePrice);
 
-  // Book now
+  // Room type selection — updates widget price
+  document.getElementById('room-types-list')?.addEventListener('click', e => {
+    const btn = e.target.closest('[data-select-room]');
+    if (!btn) return;
+    const roomPrice = parseInt(btn.dataset.roomPrice) || stay.price;
+    const roomName  = btn.dataset.roomName || '';
+    selectedPrice = roomPrice;
+    updatePriceDisplay();
+    updatePrice();
+    // Visual feedback
+    document.querySelectorAll('[data-select-room]').forEach(b => b.classList.remove('btn-primary'));
+    btn.classList.add('btn-primary');
+    btn.textContent = '✓ Selected';
+    const label = document.getElementById('booking-room-label');
+    if (label) label.textContent = `Room: ${roomName}`;
+    showToast(`${roomName} selected`, `₹${roomPrice.toLocaleString()}/night`);
+  });
+
   document.getElementById('reserve-btn')?.addEventListener('click', () => {
     const ci = checkinEl?.value; const co = checkoutEl?.value; const guests = document.getElementById('guests-count')?.value;
     if (!ci || !co) { showToast('Please select dates', '', 'error'); return; }
     const nights = Math.max(1, Math.round((new Date(co) - new Date(ci)) / 86400000));
-    const total = Math.round(nights * stay.price * 1.05);
+    const total = Math.round(nights * selectedPrice * 1.05);
     window.router.navigate(`/book/${id}?checkin=${ci}&checkout=${co}&guests=${guests}&total=${total}`);
   });
 
-  // Lightbox
+  // Lightbox (property photos)
   let currentIdx = 0;
   window.openStayLightbox = (idx) => {
     currentIdx = idx;
     document.getElementById('lb-img').src = stay.images[currentIdx];
     document.getElementById('lightbox').classList.add('open');
   };
+
+  // Lightbox (room photos)
+  window.openRoomLightbox = (roomIdx, photoIdx) => {
+    const rooms = stay.room_types || stay.roomTypes || [];
+    const imgs = (rooms[roomIdx]?.images || []).filter(Boolean);
+    if (!imgs.length) return;
+    currentIdx = 0; // not using property currentIdx for room photos
+    document.getElementById('lb-img').src = imgs[photoIdx] || imgs[0];
+    document.getElementById('lightbox').classList.add('open');
+  };
+
   document.getElementById('lb-close')?.addEventListener('click', () => document.getElementById('lightbox').classList.remove('open'));
   document.getElementById('lb-prev')?.addEventListener('click', () => { currentIdx = (currentIdx - 1 + stay.images.length) % stay.images.length; document.getElementById('lb-img').src = stay.images[currentIdx]; });
   document.getElementById('lb-next')?.addEventListener('click', () => { currentIdx = (currentIdx + 1) % stay.images.length; document.getElementById('lb-img').src = stay.images[currentIdx]; });
@@ -239,6 +279,45 @@ export function initStayDetail(id) {
     document.getElementById('review-form').classList.add('hidden');
     document.getElementById('reviews-list').innerHTML = getReviews(id).map(r => reviewCard(r)).join('');
   });
+}
+
+function buildRoomTypesSection(stay) {
+  const rooms = stay.room_types || stay.roomTypes || [];
+  if (!rooms.length) return '';
+
+  const cards = rooms.map((room, idx) => {
+    const imgs = (room.images || []).filter(Boolean);
+    const thumbs = imgs.slice(0, 3).map((src, i) => `
+      <img src="${src}" alt="${room.name}" onclick="openRoomLightbox(${idx},${i})"
+        style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid var(--glass-border);cursor:pointer" />
+    `).join('');
+    return `
+      <div class="card card-body" style="margin-bottom:14px;padding:20px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+          <div>
+            <div style="font-weight:700;font-size:1.05rem;margin-bottom:4px">${room.name || 'Room'}</div>
+            <div style="font-size:0.85rem;color:var(--text-muted)">
+              ${room.count ? `${room.count} room${room.count > 1 ? 's' : ''}` : ''}
+              ${room.max_guests ? ` · Up to ${room.max_guests} guest${room.max_guests > 1 ? 's' : ''}` : ''}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:1.3rem;font-weight:800;color:var(--emerald-400)">₹${(room.price||0).toLocaleString()}</div>
+            <div style="font-size:0.8rem;color:var(--text-muted)">/night</div>
+          </div>
+        </div>
+        ${thumbs ? `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">${thumbs}</div>` : ''}
+        <button type="button" class="btn btn-outline btn-sm" data-select-room="${idx}"
+          data-room-price="${room.price||0}" data-room-name="${room.name||'Room'}"
+          style="margin-top:14px">Select this room →</button>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <h3 style="margin-bottom:16px">🛏️ Room Types</h3>
+    <div id="room-types-list" style="margin-bottom:32px">${cards}</div>
+  `;
 }
 
 function reviewCard(r) {
