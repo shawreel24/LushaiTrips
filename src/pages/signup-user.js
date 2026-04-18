@@ -1,4 +1,5 @@
-import { registerUser, showToast, appHref } from '../utils.js';
+import { showToast, appHref } from '../utils.js';
+import { signUpEmail } from '../lib/supabase.js';
 
 export function renderSignupUser() {
   return `
@@ -50,7 +51,7 @@ export function renderSignupUser() {
 }
 
 export function initSignupUser() {
-  document.getElementById('signup-btn')?.addEventListener('click', () => {
+  document.getElementById('signup-btn')?.addEventListener('click', async () => {
     const fullName = document.getElementById('su-name')?.value?.trim();
     const email = document.getElementById('su-email')?.value?.trim();
     const phone = document.getElementById('su-phone')?.value?.trim();
@@ -59,12 +60,23 @@ export function initSignupUser() {
     if (!fullName || !email || !phone || !password) { showToast('Please fill all fields', '', 'error'); return; }
     if (password !== confirm) { showToast('Passwords do not match', '', 'error'); return; }
     if (password.length < 8) { showToast('Password must be at least 8 characters', '', 'error'); return; }
+    const btn = document.getElementById('signup-btn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Creating Account...';
+    }
+
     try {
-      registerUser({ fullName, email, phone, password });
-      showToast('Account created! Welcome');
-      setTimeout(() => window.router.navigate('/discover'), 600);
+      await signUpEmail({ email, password, fullName, phone });
+      showToast('Account created! Please check your email to verify.', '', 'success');
+      setTimeout(() => window.router.navigate('/login'), 2000);
     } catch (e) {
       showToast(e.message, '', 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+      }
     }
   });
 

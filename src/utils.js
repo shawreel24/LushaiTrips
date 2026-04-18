@@ -29,36 +29,6 @@ export function logout() { storage.remove('lt_user'); window.router.navigate('/'
 export function isLoggedIn() { return !!getCurrentUser(); }
 export function isHost() { const u = getCurrentUser(); return u?.role === 'host'; }
 
-export function registerUser(data) {
-  const users = storage.get('lt_users') || [];
-  if (users.find(u => u.email === data.email)) throw new Error('Email already registered');
-  const user = { ...data, id: Date.now(), role: 'user', createdAt: new Date().toISOString(), avatar: data.fullName?.charAt(0).toUpperCase() };
-  users.push(user);
-  storage.set('lt_users', users);
-  setCurrentUser(user);
-  return user;
-}
-
-export function registerHost(data) {
-  const users = storage.get('lt_users') || [];
-  if (users.find(u => u.email === data.email)) throw new Error('Email already registered');
-  const user = { ...data, id: Date.now(), role: 'host', status: 'pending', createdAt: new Date().toISOString(), avatar: data.name?.charAt(0).toUpperCase() };
-  users.push(user);
-  storage.set('lt_users', users);
-  const listings = storage.get('lt_listings') || [];
-  listings.push({ ...data.listing, hostId: user.id, status: 'pending', id: `listing-${Date.now()}` });
-  storage.set('lt_listings', listings);
-  setCurrentUser(user);
-  return user;
-}
-
-export function loginUser(email, password) {
-  const users = storage.get('lt_users') || [];
-  const user = users.find(u => u.email === email && u.password === password);
-  if (!user) throw new Error('Invalid email or password');
-  setCurrentUser(user);
-  return user;
-}
 
 // Keep local cache in sync with Supabase auth/profile state.
 export async function refreshUserCache() {

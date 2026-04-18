@@ -1,4 +1,4 @@
-import { loginUser, showToast, appHref, refreshUserCache, setCurrentUser } from '../utils.js';
+import { showToast, appHref, refreshUserCache, setCurrentUser } from '../utils.js';
 import { resendSignupConfirmation, signInEmail } from '../lib/supabase.js';
 
 const LOGIN_TIMEOUT_MS = 12000;
@@ -139,15 +139,7 @@ export function initLogin() {
         }
       }
 
-      // Backward compatibility for older local-only accounts.
-      try {
-        loginUser(email, password);
-        showToast('Welcome back!');
-        setTimeout(() => window.router.navigate('/'), 500);
-        return;
-      } catch {
-        showToast(e?.message || 'Invalid email or password', '', 'error');
-      }
+      showToast(e?.message || 'Invalid email or password', '', 'error');
     } finally {
       if (btn) {
         btn.disabled = false;
