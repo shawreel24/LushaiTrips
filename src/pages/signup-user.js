@@ -68,10 +68,21 @@ export function initSignupUser() {
 
     try {
       await signUpEmail({ email, password, fullName, phone });
-      showToast('Account created! Please check your email to verify.', '', 'success');
-      setTimeout(() => window.router.navigate('/login'), 2000);
+      showToast('Account created successfully!', 'Welcome to LushaiTrips.', 'success');
+      setTimeout(() => window.router.navigate('/login'), 1000);
     } catch (e) {
-      showToast(e.message, '', 'error');
+      const msg = e.message || '';
+      if (msg.toLowerCase().includes('sending confirmation email') || msg.toLowerCase().includes('smtp')) {
+        showToast(
+          'Account created, but email delivery failed.',
+          'Your account may already be set up — try logging in. If it fails, contact support.',
+          'error'
+        );
+      } else if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('user already exists')) {
+        showToast('Email already in use', 'An account with this email already exists. Try logging in instead.', 'error');
+      } else {
+        showToast(e.message, '', 'error');
+      }
     } finally {
       if (btn) {
         btn.disabled = false;
