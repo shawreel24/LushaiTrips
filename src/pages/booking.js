@@ -2,6 +2,7 @@ import { stays } from '../data/stays.js';
 import { guides } from '../data/services.js';
 import { transport } from '../data/services.js';
 import { isLoggedIn, getCurrentUser, createBooking, showToast, appHref } from '../utils.js';
+import { supabase } from '../lib/supabase.js';
 
 export function renderBooking(id, params) {
   const checkin = params.get('checkin') || '';
@@ -58,22 +59,26 @@ export function renderBooking(id, params) {
             </div>
 
             <div class="divider-h"></div>
+            <div class="divider-h"></div>
             <h3 style="margin-bottom:16px">Payment</h3>
-            <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--radius);padding:24px;margin-bottom:28px">
+            <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--radius);padding:24px;margin-bottom:28px;position:relative;overflow:hidden">
               <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-                <span style="font-size:1.5rem">🔒</span>
+                <span style="font-size:1.5rem">🛡️</span>
                 <div>
-                  <div style="font-weight:700">Secure Booking</div>
-                  <div style="font-size:0.85rem;color:var(--text-muted)">Your payment info is never stored on our servers</div>
+                  <div style="font-weight:700">100% Secure Checkout</div>
+                  <div style="font-size:0.85rem;color:var(--text-muted)">Powered by Razorpay. Your payment information is encrypted and safe.</div>
                 </div>
               </div>
               <div style="display:flex;gap:16px;flex-wrap:wrap">
-                ${['UPI / GPay / PhonePe','Debit / Credit Card','Net Banking','Wallets'].map(m => `<div style="display:flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--text-muted)"><span style="color:var(--emerald-400)">✓</span>${m}</div>`).join('')}
+                ${['UPI (GPay, PhonePe)','Credit/Debit Card','Net Banking','Wallets'].map(m => `<div style="display:flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--text-muted)"><span style="color:var(--emerald-400)">✓</span>${m}</div>`).join('')}
+              </div>
+              <div style="position:absolute;top:20px;right:20px;opacity:0.3;filter:grayscale(1)">
+                <svg viewBox="0 0 100 24" width="70" height="18" fill="currentColor"><path d="M22.43 14.28L25.26 2h-4.3l-2.07 9.87h-5.2l2.06-9.87H11.5L9.44 11.87h-4.2L6.15 7.42H2l2.58 11.66h4.3l1.1-4.8h4.2l-1.01 4.8h4.34l1.37-6.52h5.18l-1.37 6.52h4.3l2.84-13.5zM33.4 12.35c.78.38 1.4.92 1.83 1.62.44.7.66 1.48.66 2.37 0 1.2-.3 2.22-.9 3.06-.6.84-1.42 1.46-2.46 1.87-1.04.4-2.22.6-3.53.6H23.5l3.22-15.3h5.6c1.17 0 2.2.14 3.08.43.88.29 1.57.73 2.06 1.34.5.6.74 1.37.74 2.3 0 1.05-.33 1.95-1.01 2.7-.68.74-1.6 1.25-2.79 1.5zm-3.23-2.92c0-.52-.16-.92-.48-1.2-.32-.28-.78-.42-1.37-.42h-3.32l-.93 4.41h2.52c.86 0 1.5-.16 1.93-.47.43-.3.65-.8.65-1.5v-.82zm-4.7 9h3.76c1.15 0 2-.2 2.53-.61.54-.4.8-1 .8-1.78 0-.48-.12-.88-.35-1.2-.24-.31-.6-.53-1.1-.64-.5-.12-1.15-.17-1.96-.17h-2.12L25.47 18.42h-.01z "/></svg>
               </div>
             </div>
 
             <button class="btn btn-primary btn-lg w-full" id="pay-btn" style="justify-content:center;font-size:1.1rem" ${!isLoggedIn() ? 'disabled style="opacity:0.5;cursor:not-allowed;justify-content:center;font-size:1.1rem"' : ''}>
-              🔒 Confirm Booking — ₹${total.toLocaleString()}
+              Pay ₹${total.toLocaleString()} securely with Razorpay
             </button>
             <p style="text-align:center;font-size:0.8rem;color:var(--text-muted);margin-top:10px">By booking, you agree to our Terms &amp; Conditions and Cancellation Policy.</p>
           </div>
@@ -119,7 +124,8 @@ export function initBooking(id, params) {
   const bookingName = params.get('name') ? decodeURIComponent(params.get('name')) : id;
   const stay = stays.find(s => s.id === id);
 
-  document.getElementById('pay-btn')?.addEventListener('click', () => {
+  const btn = document.getElementById('pay-btn');
+  btn?.addEventListener('click', async () => {
     if (!isLoggedIn()) { showToast('Please log in first', '', 'error'); return; }
     const name = document.getElementById('pay-name')?.value?.trim();
     const email = document.getElementById('pay-email')?.value?.trim();
@@ -138,8 +144,94 @@ export function initBooking(id, params) {
       notes: document.getElementById('pay-notes')?.value || '',
     };
 
-    const booking = createBooking(bookingData);
-    showToast('Booking Confirmed! 🎉', `Ref: ${booking.id}`);
-    setTimeout(() => window.router.navigate('/booking-confirmed'), 800);
+    try {
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '🔒 Processing...';
+      btn.disabled = true;
+      btn.style.opacity = '0.7';
+
+      // 1. Call our secure Edge Function to create a Razorpay Order
+      const sessionData = await supabase.auth.getSession();
+      const token = sessionData.data?.session?.access_token;
+      
+      if (!token) {
+        throw new Error('Session expired. Please log out and log in again.');
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-razorpay-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ amount: total })
+      });
+
+      let orderData;
+      try {
+        orderData = await response.json();
+      } catch(e) {
+        throw new Error('Failed to parse server response');
+      }
+
+      if (!response.ok || orderData.error) {
+        throw new Error(orderData.error || orderData.message || 'Failed to initialize payment');
+      }
+
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY, // Public Key ID
+        amount: orderData.amount, // in paise
+        currency: orderData.currency,
+        name: "LushaiTrips",
+        description: `Booking for ${bookingData.listingName}`,
+        order_id: orderData.id,
+        prefill: {
+          name: name,
+          email: email,
+          contact: phone
+        },
+        theme: {
+          color: "#34d399" // emerald-400
+        },
+        handler: async function (response) {
+          try {
+            // Payment successful, attach payment ID to booking
+            bookingData.paymentId = response.razorpay_payment_id;
+            
+            const booking = await createBooking(bookingData);
+            showToast('Booking Confirmed! 🎉', `Ref: ${booking.id}`);
+            setTimeout(() => window.router.navigate('/booking-confirmed'), 800);
+          } catch (err) {
+            console.error('Booking save error:', err);
+            showToast('Payment successful, but failed to save booking', err.message, 'error');
+          }
+        },
+        modal: {
+          ondismiss: function() {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            showToast('Payment cancelled', '', 'error');
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (response) {
+        showToast('Payment Failed', response.error.description, 'error');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.style.opacity = '1';
+      });
+      rzp.open();
+      
+    } catch (error) {
+      console.error('Payment init error:', error);
+      showToast('Payment Error', error.message, 'error');
+      btn.innerHTML = 'Pay ₹' + total.toLocaleString() + ' securely with Razorpay';
+      btn.disabled = false;
+      btn.style.opacity = '1';
+    }
   });
 }
