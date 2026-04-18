@@ -358,3 +358,80 @@ p{line-height:1.7;color:var(--text-muted)}
 .otp-step{animation:none}
 @keyframes otpSlideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
 .otp-step-enter{animation:otpSlideIn 0.35s cubic-bezier(0.4,0,0.2,1) both}
+
+/* ── Mobile ── */
+@media(max-width:640px){
+  /* Tighter container padding */
+  .container{padding:0 16px}
+
+  /* Hero */
+  .hero{min-height:100svh;align-items:flex-start}
+  .hero-content{padding-top:88px!important;padding-bottom:40px}
+  .hero-badge{font-size:0.72rem;padding:5px 12px;margin-bottom:18px}
+  h1{font-size:clamp(2rem,10vw,3rem)!important}
+  .hero-subtitle{
+    font-size:1rem;
+    max-width:100%;
+    margin-bottom:28px;
+    padding-right:0;
+    white-space:normal;
+    word-break:break-word;
+    overflow-wrap:break-word;
+  }
+
+  /* Hero action buttons — stack vertically, full width */
+  .hero-actions{flex-direction:column;gap:12px;align-items:stretch}
+  .hero-actions .btn{justify-content:center;width:100%;padding:14px 20px;font-size:1rem;border-radius:14px}
+  .btn-lg{padding:14px 20px;font-size:1rem}
+
+  /* Stats — 2×2 grid */
+  .hero-stats{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px 24px;
+    margin-top:36px;
+  }
+  .stat-item .stat-num{font-size:1.6rem}
+  .stat-item .stat-label{font-size:0.72rem}
+
+  /* Sections */
+  .section{padding:48px 0}
+  .section-sm{padding:28px 0}
+
+  /* Grids collapse to 1 column */
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+
+  /* Cards */
+  .card-img-wrap{height:200px}
+
+  /* Page hero */
+  .page-hero{padding:100px 0 40px}
+
+  /* Detail hero */
+  .detail-hero{height:45vh}
+  .detail-hero-content{padding:20px 16px}
+
+  /* CTA buttons wrap */
+  .section [style*="display:flex"][style*="gap:16px"]{flex-direction:column;align-items:stretch}
+  .section [style*="display:flex"][style*="gap:16px"] .btn{justify-content:center;border-radius:14px}
+
+  /* Footer */
+  .footer-grid{grid-template-columns:1fr!important}
+
+  /* Auth card */
+  .auth-card{padding:32px 20px}
+
+  /* Glows — hide on mobile for perf */
+  .hero-glow,.hero-glow2{display:none}
+
+  /* Geometric accent line under hero title */
+  .hero-title::after{
+    content:'';
+    display:block;
+    width:48px;
+    height:3px;
+    background:linear-gradient(90deg,var(--emerald-400),var(--amber-400));
+    border-radius:2px;
+    margin-top:12px;
+  }
+}
