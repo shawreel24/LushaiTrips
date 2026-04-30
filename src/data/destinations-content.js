@@ -63,6 +63,9 @@ export const destinationsContent = [
     reviews: 93,
     coverImage: '/images/IMG_8826.JPG.jpeg',
     images: [
+      '/images/tamdil-lake-mizoram.jpeg',
+      '/images/2019072338-1024x576.jpg',
+      '/images/2019072384-1-olw9h396o5jhwh510ctk9bwfep94no9o510c4tj0ju.jpg',
       '/images/IMG_8826.JPG.jpeg',
       '/images/IMG_8827.JPG.jpeg',
       '/images/IMG_8828.JPG.jpeg',
@@ -205,7 +208,6 @@ export const destinationsContent = [
     duration: '1 day',
     category: 'relaxation',
   },
-
   {
     id: 'aizawl-city',
     name: 'Aizawl City',
@@ -218,12 +220,11 @@ export const destinationsContent = [
     lng: 92.7176,
     rating: 4.5,
     reviews: 211,
-    coverImage: '/images/IMG_9003.JPG.jpeg',
+    coverImage: 'https://images.unsplash.com/photo-1486325212027-8081e485255e?w=800&q=80',
     images: [
-      '/images/IMG_9003.JPG.jpeg',
-      '/images/IMG_9004.JPG.jpeg',
-      '/images/IMG_9005.JPG.jpeg',
-      '/images/IMG_9002.JPG.jpeg',
+      'https://images.unsplash.com/photo-1486325212027-8081e485255e?w=800&q=80',
+      'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800&q=80',
+      'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80',
     ],
     description: `Aizawl, perched dramatically on ridges at 1,132 m elevation, is one of India's most unique capital cities. Explore the old market (Bara Bazar), taste Mizo cuisine, visit the state museum, and experience the warmth of Mizo hospitality.`,
     highlights: ['Bara Bazar', 'Mizo cuisine', 'State Museum', 'Durtlang Hills'],
@@ -232,7 +233,6 @@ export const destinationsContent = [
     duration: '2-3 days',
     category: 'culture',
   },
-
   {
     id: 'castle-of-bawinu-beino',
     name: 'Castle of Bawinu/Beino',
