@@ -7,7 +7,6 @@ const TRANSPORT_PLACEHOLDER = 'https://images.unsplash.com/photo-1449965408869-e
 const TRANSPORT_FETCH_TIMEOUT_MS = 6000;
 const RECENT_TRANSPORT_STORAGE_KEY = 'lt_recent_transport';
 const HIDDEN_TRANSPORT_IDS = new Set(['transport-raj', 'transport-zara', 'transport-lal']);
-const HIDDEN_TRANSPORT_NAMES = new Set(['raj mizoram travels']);
 
 function withTimeout(promise, ms, message) {
   let timer;
@@ -58,14 +57,10 @@ function normalizeTransport(item) {
   };
 }
 
-function normalizeTransportName(name = '') {
-  return String(name).trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
 function isVisibleTransport(item) {
   if (!item?.id) return false;
   if (HIDDEN_TRANSPORT_IDS.has(item.id)) return false;
-  return !HIDDEN_TRANSPORT_NAMES.has(normalizeTransportName(item.name));
+  return true;
 }
 
 function sanitizeRecentTransport(items) {
