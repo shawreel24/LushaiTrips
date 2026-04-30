@@ -150,29 +150,59 @@ export function initHome() {
   });
 
   // Load stays preview
-  import('../data/stays.js').then(({ stays }) => {
+  (async () => {
     const grid = document.getElementById('home-stays-grid');
     if (!grid) return;
-    grid.innerHTML = stays.slice(0, 3).map(s => `
-      <div class="card stay-card animate-in" data-href="/stay/${s.id}">
-        <div class="card-img-wrap">
-          <img src="${s.coverImage}" alt="${s.name}" loading="lazy" />
-          <div class="card-badge">${s.type.toUpperCase()}</div>
-          ${s.topRated ? '<div style="position:absolute;top:12px;right:12px;background:rgba(245,158,11,0.9);padding:3px 10px;border-radius:50px;font-size:0.72rem;font-weight:700;color:#000">🔥 TOP RATED</div>' : ''}
-          <div class="card-rating">${starsHTML(s.rating)} <span>${s.rating}</span></div>
-        </div>
-        <div class="card-body">
-          <h4 class="card-title">${s.name}</h4>
-          <div class="card-meta" style="margin-bottom:8px">📍 ${s.location}</div>
-          <div class="flex-between">
-            <span class="price">₹${s.price.toLocaleString()}<span>/night</span></span>
-            <span style="font-size:0.8rem;color:var(--text-muted)">👥 up to ${s.maxGuests}</span>
+
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">⏳ Loading stays…</div>';
+
+    try {
+      const { fetchStays } = await import('../lib/supabase.js');
+      const stays = await fetchStays();
+
+      const latest = (stays || [])
+        .slice()
+        .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+        .slice(0, 3);
+
+      if (!latest.length) {
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">No stays yet.</div>';
+        return;
+      }
+
+      grid.innerHTML = latest.map(s => {
+        const cover = s.cover_image || s.coverImage || '';
+        const maxGuests = s.max_guests ?? s.maxGuests ?? '';
+        const topRated = !!(s.top_rated ?? s.topRated);
+        const type = (s.type || '').toString();
+        const price = typeof s.price === 'number' ? s.price : parseFloat(s.price || '0');
+
+        return `
+          <div class="card stay-card animate-in" data-href="/stay/${s.id}">
+            <div class="card-img-wrap">
+              <img src="${cover}" alt="${s.name}" loading="lazy" />
+              <div class="card-badge">${type.toUpperCase()}</div>
+              ${topRated ? '<div style="position:absolute;top:12px;right:12px;background:rgba(245,158,11,0.9);padding:3px 10px;border-radius:50px;font-size:0.72rem;font-weight:700;color:#000">🔥 TOP RATED</div>' : ''}
+              <div class="card-rating">${starsHTML(s.rating)} <span>${s.rating}</span></div>
+            </div>
+            <div class="card-body">
+              <h4 class="card-title">${s.name}</h4>
+              <div class="card-meta" style="margin-bottom:8px">📍 ${s.location}</div>
+              <div class="flex-between">
+                <span class="price">₹${Number.isFinite(price) ? price.toLocaleString() : ''}<span>/night</span></span>
+                <span style="font-size:0.8rem;color:var(--text-muted)">👥 up to ${maxGuests}</span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-    `).join('');
-    document.querySelectorAll('.stay-card[data-href]').forEach(card => {
-      card.addEventListener('click', () => window.router.navigate(card.dataset.href));
-    });
-  });
+        `;
+      }).join('');
+
+      document.querySelectorAll('.stay-card[data-href]').forEach(card => {
+        card.addEventListener('click', () => window.router.navigate(card.dataset.href));
+      });
+    } catch (e) {
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">Unable to load stays right now.</div>';
+      console.warn('[home] stays preview failed:', e.message);
+    }
+  })();
 }
