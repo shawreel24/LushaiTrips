@@ -260,7 +260,8 @@ export async function initStayDetail(id) {
     if (!ci || !co) { showToast('Please select dates', '', 'error'); return; }
     const nights = Math.max(1, Math.round((new Date(co) - new Date(ci)) / 86400000));
     const subtotal = nights * selectedPrice;
-    window.router.navigate(`/book/${id}?checkin=${ci}&checkout=${co}&guests=${guests}&total=${subtotal}`);
+    const image = encodeURIComponent(stay.coverImage || stay.cover_image || stay.images?.[0] || '');
+    window.router.navigate(`/book/${id}?checkin=${ci}&checkout=${co}&guests=${guests}&total=${subtotal}&type=stay&name=${encodeURIComponent(stay.name || '')}&image=${image}`);
   });
 
   // Lightbox (property photos)

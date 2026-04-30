@@ -22,12 +22,13 @@ export function renderBooking(id, params) {
   const guide = guides.find(g => g.id === id || g.id === normalizedGuideId);
   const transportItem = transport.find(t => t.id === id);
   const matchedListing = type === 'stay' ? stay : (type === 'guide' ? guide : (type === 'transport' ? transportItem : null));
-  const listing = matchedListing || {
-    id,
-    name: bookingName || id,
-    coverImage: bookingImage || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&q=80',
-    type,
-  };
+  const displayName = matchedListing?.name || bookingName || id;
+  const displayImage =
+    matchedListing?.coverImage ||
+    matchedListing?.cover_image ||
+    matchedListing?.images?.[0] ||
+    bookingImage ||
+    'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&q=80';
 
   const nights = checkin && checkout ? Math.max(1, Math.round((new Date(checkout)-new Date(checkin))/86400000)) : 1;
 
@@ -100,10 +101,10 @@ export function renderBooking(id, params) {
           <!-- Right: Summary card -->
           <div>
             <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--radius-lg);overflow:hidden;position:sticky;top:100px">
-              <img src="${listing.coverImage}" alt="${listing.name}" style="width:100%;height:200px;object-fit:cover" />
+              <img src="${displayImage}" alt="${displayName}" style="width:100%;height:200px;object-fit:cover" />
               <div style="padding:24px">
-                <div style="font-size:0.75rem;font-weight:700;color:var(--emerald-400);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">${listing.type || 'Stay'}</div>
-                <h4 style="margin-bottom:8px">${listing.name}</h4>
+                <div style="font-size:0.75rem;font-weight:700;color:var(--emerald-400);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px">${type || 'Stay'}</div>
+                <h4 style="margin-bottom:8px">${displayName}</h4>
                 ${checkin ? `
                   <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px">📅 ${new Date(checkin+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})} → ${new Date(checkout+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</div>
                   <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px">👥 ${guests} guest${guests>1?'s':''} · ${nights} night${nights>1?'s':''}</div>
@@ -146,6 +147,7 @@ export function initBooking(id, params) {
   const guide = guides.find(g => g.id === id || g.id === normalizedGuideId);
   const transportItem = transport.find(t => t.id === id);
   const matchedListing = type === 'stay' ? stay : (type === 'guide' ? guide : (type === 'transport' ? transportItem : null));
+  const displayName = matchedListing?.name || bookingName;
 
   const btn = document.getElementById('pay-btn');
   btn?.addEventListener('click', async () => {
@@ -159,7 +161,7 @@ export function initBooking(id, params) {
     const bookingData = {
       userId: user.id,
       listingId: id,
-      listingName: matchedListing?.name || bookingName,
+      listingName: displayName,
       listingType: type,
       checkin, checkout, guests,
       total,
