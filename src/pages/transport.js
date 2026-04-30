@@ -22,6 +22,7 @@ function normalizeVehicle(vehicle) {
     capacity: Number(vehicle?.capacity || 1),
     price: Number(vehicle?.price || 0),
     priceUnit: vehicle?.price_unit || vehicle?.priceUnit || 'per day',
+    category: vehicle?.category || vehicle?.service || 'Tour',
   };
 }
 
@@ -129,6 +130,10 @@ function renderTransportCard(item) {
 }
 
 function renderTransportDetailContent(item) {
+  const serviceCategories = [...new Set((item.vehicles || []).map(v => v.category).filter(Boolean))];
+  const defaultCategory = serviceCategories[0] || 'Tour';
+  const defaultVehicles = (item.vehicles || []).filter(v => v.category === defaultCategory);
+
   return `
     <div style="padding-top:76px">
       <div class="container" style="margin-top:24px">
@@ -178,15 +183,21 @@ function renderTransportDetailContent(item) {
           <div>
             <div class="booking-widget">
               <div style="font-family:var(--font-head);font-size:1.1rem;font-weight:700;margin-bottom:4px">Book Transport</div>
-              <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:20px">Select vehicle and dates</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:20px">Choose service, vehicle and dates</div>
+              <div class="form-group">
+                <label class="form-label">Service Type</label>
+                <select class="form-select" id="service-select">
+                  ${serviceCategories.map(cat => `<option value="${cat}" ${cat === defaultCategory ? 'selected' : ''}>${cat}</option>`).join('')}
+                </select>
+              </div>
               <div class="form-group">
                 <label class="form-label">Vehicle</label>
                 <select class="form-select" id="vehicle-select">
-                  ${item.vehicles.map(vehicle => `<option value="${vehicle.price}">${vehicle.name} - Rs ${vehicle.price.toLocaleString()} ${vehicle.priceUnit}</option>`).join('')}
+                  ${defaultVehicles.map(vehicle => `<option value="${vehicle.price}" data-price-unit="${vehicle.priceUnit}">${vehicle.name} - Rs ${vehicle.price.toLocaleString()} ${vehicle.priceUnit}</option>`).join('')}
                 </select>
               </div>
               <div class="form-group"><label class="form-label">Pickup Date</label><input type="date" class="form-input" id="pickup-date" /></div>
-              <div class="form-group"><label class="form-label">Drop-off Date</label><input type="date" class="form-input" id="dropoff-date" /></div>
+              <div class="form-group" id="dropoff-wrap"><label class="form-label">Drop-off Date</label><input type="date" class="form-input" id="dropoff-date" /></div>
               <div class="form-group"><label class="form-label">Pickup Location</label><input type="text" class="form-input" id="pickup-loc" placeholder="e.g. Aizawl Airport" /></div>
               <div id="transport-total" style="background:var(--glass);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px;font-size:0.9rem;color:var(--text-muted)">Select vehicle and dates to see total</div>
               <button class="btn btn-primary w-full" id="book-transport-btn" style="justify-content:center;padding:16px;margin-bottom:12px">Book Now -></button>
@@ -330,6 +341,10 @@ export async function initTransportDetail(id) {
   transportCache.set(item.id, item);
   root.outerHTML = renderTransportDetailContent(item);
 
+  const serviceEl = document.getElementById('service-select');
+  const vehicleEl = document.getElementById('vehicle-select');
+  const dropoffWrap = document.getElementById('dropoff-wrap');
+
   const formatLocalISO = (d) => {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -345,6 +360,34 @@ export async function initTransportDetail(id) {
 
   const pickupEl = document.getElementById('pickup-date');
   const dropoffEl = document.getElementById('dropoff-date');
+
+  const allVehicles = Array.isArray(item?.vehicles) ? item.vehicles : [];
+  const getActiveCategory = () => serviceEl?.value || allVehicles[0]?.category || 'Tour';
+  const getVehiclesForCategory = (category) => allVehicles.filter(v => (v.category || 'Tour') === category);
+  const refreshVehicleOptions = () => {
+    if (!vehicleEl) return;
+    const category = getActiveCategory();
+    const options = getVehiclesForCategory(category);
+    vehicleEl.innerHTML = options.length
+      ? options.map(v => `<option value="${v.price}" data-price-unit="${v.priceUnit}">${v.name} - Rs ${Number(v.price || 0).toLocaleString()} ${v.priceUnit}</option>`).join('')
+      : `<option value="0">No vehicles available</option>`;
+  };
+
+  const updateServiceUi = () => {
+    const category = getActiveCategory();
+    const isTour = category.toLowerCase() === 'tour';
+    if (dropoffWrap) dropoffWrap.style.display = isTour ? '' : 'none';
+    if (!isTour && pickupEl && dropoffEl) {
+      dropoffEl.value = pickupEl.value;
+    }
+  };
+
+  serviceEl?.addEventListener('change', () => {
+    refreshVehicleOptions();
+    updateServiceUi();
+    clampDates();
+    updateTotal();
+  });
 
   if (pickupEl) {
     pickupEl.min = formatLocalISO(tomorrow);
@@ -362,6 +405,14 @@ export async function initTransportDetail(id) {
     const minPickup = new Date(tomorrow);
     if (pickup < minPickup) pickupEl.value = formatLocalISO(tomorrow);
 
+    const category = getActiveCategory();
+    const isTour = category.toLowerCase() === 'tour';
+    if (!isTour) {
+      dropoffEl.value = pickupEl.value;
+      dropoffEl.min = pickupEl.value;
+      return;
+    }
+
     const minDropoff = new Date(pickupEl.value);
     minDropoff.setDate(minDropoff.getDate() + 1);
     dropoffEl.min = formatLocalISO(minDropoff);
@@ -370,16 +421,21 @@ export async function initTransportDetail(id) {
     if (dropoff < minDropoff) dropoffEl.value = formatLocalISO(minDropoff);
   };
   clampDates();
+  refreshVehicleOptions();
+  updateServiceUi();
 
   const updateTotal = () => {
-    const price = parseInt(document.getElementById('vehicle-select')?.value || 0, 10);
+    const price = parseInt(vehicleEl?.value || 0, 10);
     const pickup = new Date(document.getElementById('pickup-date')?.value);
     const dropoff = new Date(document.getElementById('dropoff-date')?.value);
-    const days = Math.max(1, Math.round((dropoff - pickup) / 86400000));
+    const category = getActiveCategory();
+    const isTour = category.toLowerCase() === 'tour';
+    const days = isTour ? Math.max(1, Math.round((dropoff - pickup) / 86400000)) : 1;
     const total = price * days;
     const el = document.getElementById('transport-total');
     if (el) {
-      el.innerHTML = `<div class="flex-between"><span>Rs ${price.toLocaleString()} x ${days} day${days > 1 ? 's' : ''}</span><strong style="color:var(--text)">Rs ${total.toLocaleString()}</strong></div>`;
+      const unitLabel = isTour ? `day${days > 1 ? 's' : ''}` : 'trip';
+      el.innerHTML = `<div class="flex-between"><span>Rs ${price.toLocaleString()} x ${days} ${unitLabel}</span><strong style="color:var(--text)">Rs ${total.toLocaleString()}</strong></div>`;
     }
     return total;
   };
@@ -387,6 +443,7 @@ export async function initTransportDetail(id) {
   updateTotal();
   ['vehicle-select', 'pickup-date', 'dropoff-date'].forEach(fieldId => {
     document.getElementById(fieldId)?.addEventListener('change', () => {
+      updateServiceUi();
       clampDates();
       updateTotal();
     });
@@ -402,6 +459,10 @@ export async function initTransportDetail(id) {
     }
     const total = updateTotal();
     const image = encodeURIComponent(item.coverImage || item.cover_image || '');
-    window.router.navigate(`/book/${id}?total=${total}&type=transport&name=${encodeURIComponent(item.name)}&image=${image}`);
+    const service = encodeURIComponent(getActiveCategory());
+    const pickupLoc = encodeURIComponent(document.getElementById('pickup-loc')?.value?.trim() || '');
+    const checkin = pickupEl?.value || '';
+    const checkout = dropoffEl?.value || checkin;
+    window.router.navigate(`/book/${id}?checkin=${checkin}&checkout=${checkout}&total=${total}&type=transport&service=${service}&pickup=${pickupLoc}&name=${encodeURIComponent(item.name)}&image=${image}`);
   });
 }
