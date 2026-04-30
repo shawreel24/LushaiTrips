@@ -440,6 +440,37 @@ function renderPreparedPhotoCard(wrap, preview, index) {
   wrap.innerHTML = `<img src="${preview}" alt="upload" />${index === 0 ? '<div style="position:absolute;bottom:4px;left:4px;background:rgba(16,185,129,0.9);color:#fff;font-size:0.65rem;padding:2px 6px;border-radius:4px;font-weight:700">COVER</div>' : ''}<button class="remove-img">x</button>`;
 }
 
+function buildCategoryEntry(catIdx, isRemovable = false) {
+  return `
+    <div data-category-entry style="background:rgba(255,255,255,0.03);border:1px solid var(--glass-border);border-radius:var(--radius-sm,10px);padding:14px 16px;margin-bottom:10px;${isRemovable ? 'position:relative' : ''}">
+      ${isRemovable ? '<button class="remove-img" type="button" data-remove-category style="position:absolute;top:8px;right:8px;width:22px;height:22px;font-size:0.75rem">x</button>' : ''}
+      <div class="form-group" style="margin-bottom:10px">
+        <label class="form-label" style="font-size:0.82rem">Category *</label>
+        <select class="form-select" data-category-field="category">
+          <option value="Airport pickup">Airport pickup</option>
+          <option value="City service">City service</option>
+          <option value="Tour">Tour</option>
+        </select>
+      </div>
+      <div class="grid-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" style="font-size:0.82rem">Price (INR) *</label>
+          <input type="number" class="form-input" data-category-field="price" placeholder="e.g. 3500" />
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" style="font-size:0.82rem">Price Unit</label>
+          <select class="form-select" data-category-field="price_unit">
+            <option>per day (fuel incl.)</option>
+            <option>per day (fuel extra)</option>
+            <option>per km</option>
+            <option>per seat per route</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function buildVehicleRow(idx) {
   return `
     <div class="card card-body" data-vehicle-row style="padding:20px;margin-bottom:16px;${idx > 0 ? 'position:relative' : ''}">
@@ -449,37 +480,34 @@ function buildVehicleRow(idx) {
         <div class="form-group"><label class="form-label">Vehicle Name *</label><input type="text" class="form-input" data-vehicle-field="name" placeholder="e.g. Toyota Innova Crysta" /></div>
         <div class="form-group"><label class="form-label">Passenger Capacity *</label><input type="number" class="form-input" data-vehicle-field="capacity" min="1" max="30" placeholder="e.g. 7" /></div>
       </div>
-      <div class="grid-2">
-        <div class="form-group"><label class="form-label">Price (INR) *</label><input type="number" class="form-input" data-vehicle-field="price" placeholder="e.g. 3500" /></div>
-        <div class="form-group"><label class="form-label">Price Unit</label>
-          <select class="form-select" data-vehicle-field="price_unit"><option>per day (fuel incl.)</option><option>per day (fuel extra)</option><option>per km</option><option>per seat per route</option></select>
-        </div>
+
+      <div style="margin-top:8px;margin-bottom:4px;font-weight:600;font-size:0.88rem;color:var(--text-secondary,var(--text-muted))">Categories &amp; Pricing</div>
+      <div data-categories-container>
+        ${buildCategoryEntry(0, false)}
       </div>
-      <div class="form-group">
-        <label class="form-label">Category *</label>
-        <select class="form-select" data-vehicle-field="category">
-          <option value="Airport pickup">Airport pickup</option>
-          <option value="City service">City service</option>
-          <option value="Tour">Tour</option>
-        </select>
-      </div>
+      <button class="btn btn-outline btn-sm" type="button" data-add-category style="font-size:0.8rem;padding:6px 14px;margin-bottom:4px">+ Add Category</button>
     </div>
   `;
+}
+
+function readCategoryEntries(row) {
+  const entries = [...row.querySelectorAll('[data-category-entry]')];
+  return entries.map(entry => ({
+    category: entry.querySelector('[data-category-field="category"]')?.value || 'Tour',
+    price: entry.querySelector('[data-category-field="price"]')?.value || '',
+    priceUnit: entry.querySelector('[data-category-field="price_unit"]')?.value || 'per day (fuel incl.)',
+  }));
 }
 
 function readVehicleRow(row) {
   const name = row.querySelector('[data-vehicle-field="name"]')?.value?.trim() || '';
   const capacity = row.querySelector('[data-vehicle-field="capacity"]')?.value || '';
-  const price = row.querySelector('[data-vehicle-field="price"]')?.value || '';
-  const priceUnit = row.querySelector('[data-vehicle-field="price_unit"]')?.value || 'per day (fuel incl.)';
-  const category = row.querySelector('[data-vehicle-field="category"]')?.value || 'Tour';
+  const categories = readCategoryEntries(row);
 
   return {
     name,
     capacity,
-    price,
-    priceUnit,
-    category,
+    categories,
   };
 }
 
@@ -489,23 +517,30 @@ function collectVehicles() {
 
   for (const row of rows) {
     const vehicle = readVehicleRow(row);
-    const hasAnyValue = Boolean(vehicle.name || vehicle.capacity || vehicle.price);
+    const hasAnyValue = Boolean(vehicle.name || vehicle.capacity);
 
     if (!hasAnyValue) {
       continue;
     }
 
-    if (!vehicle.name || !vehicle.capacity || !vehicle.price) {
+    if (!vehicle.name || !vehicle.capacity) {
       throw new Error('Please complete each vehicle entry or remove the incomplete row.');
     }
 
-    vehicles.push({
-      name: vehicle.name,
-      capacity: parseInt(vehicle.capacity, 10),
-      price: parseInt(vehicle.price, 10),
-      price_unit: vehicle.priceUnit,
-      category: vehicle.category,
-    });
+    const validCategories = vehicle.categories.filter(c => c.price);
+    if (!validCategories.length) {
+      throw new Error(`Please add at least one category with a price for "${vehicle.name}".`);
+    }
+
+    for (const cat of validCategories) {
+      vehicles.push({
+        name: vehicle.name,
+        capacity: parseInt(vehicle.capacity, 10),
+        price: parseInt(cat.price, 10),
+        price_unit: cat.priceUnit,
+        category: cat.category,
+      });
+    }
   }
 
   if (!vehicles.length) {
@@ -629,9 +664,28 @@ export function initHostSignupTransport() {
   });
 
   document.getElementById('vehicles-container')?.addEventListener('click', event => {
-    const button = event.target.closest('[data-remove-vehicle]');
-    if (!button) return;
-    button.closest('[data-vehicle-row]')?.remove();
+    const removeVehicleBtn = event.target.closest('[data-remove-vehicle]');
+    if (removeVehicleBtn) {
+      removeVehicleBtn.closest('[data-vehicle-row]')?.remove();
+      return;
+    }
+
+    const removeCategoryBtn = event.target.closest('[data-remove-category]');
+    if (removeCategoryBtn) {
+      removeCategoryBtn.closest('[data-category-entry]')?.remove();
+      return;
+    }
+
+    const addCategoryBtn = event.target.closest('[data-add-category]');
+    if (addCategoryBtn) {
+      const vehicleRow = addCategoryBtn.closest('[data-vehicle-row]');
+      const container = vehicleRow?.querySelector('[data-categories-container]');
+      if (container) {
+        const currentCount = container.querySelectorAll('[data-category-entry]').length;
+        container.insertAdjacentHTML('beforeend', buildCategoryEntry(currentCount, true));
+      }
+      return;
+    }
   });
 
   document.getElementById('t-photos')?.addEventListener('change', async event => {
