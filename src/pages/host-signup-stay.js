@@ -301,7 +301,7 @@ function buildRoomCard(room, idx) {
         <div class="form-group">
           <label class="form-label">Price per Night (₹) *</label>
           <input type="number" class="form-input" id="room-price-${idx}" min="500" placeholder="e.g. 2000" value="${room.price||''}" />
-          <span class="form-hint">Platform takes 10% commission.</span>
+          <span class="form-hint">For stays, we take 8% commission.</span>
         </div>
         <div class="form-group">
           <label class="form-label">Max Guests *</label>
