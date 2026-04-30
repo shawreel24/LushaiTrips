@@ -41,7 +41,7 @@ export function renderFooter() {
           </div>
         </div>
         <div class="footer-bottom">
-          <p>© 2026 LushaiTrips. Made with 💚 in Mizoram, India. | Maps by <strong>Leaflet</strong></p>
+          <p>© 2026 LushaiTrips.</p>
         </div>
       </div>
     </footer>
