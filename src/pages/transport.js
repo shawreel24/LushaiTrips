@@ -6,7 +6,7 @@ const transportCache = new Map();
 const TRANSPORT_PLACEHOLDER = 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=800&q=80';
 const TRANSPORT_FETCH_TIMEOUT_MS = 6000;
 const RECENT_TRANSPORT_STORAGE_KEY = 'lt_recent_transport';
-const HIDDEN_TRANSPORT_IDS = new Set(['transport-raj']);
+const HIDDEN_TRANSPORT_IDS = new Set(['transport-raj', 'transport-zara', 'transport-lal']);
 const HIDDEN_TRANSPORT_NAMES = new Set(['raj mizoram travels', 'grace travels']);
 
 function withTimeout(promise, ms, message) {
