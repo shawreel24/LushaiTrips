@@ -455,6 +455,14 @@ function buildVehicleRow(idx) {
           <select class="form-select" data-vehicle-field="price_unit"><option>per day (fuel incl.)</option><option>per day (fuel extra)</option><option>per km</option><option>per seat per route</option></select>
         </div>
       </div>
+      <div class="form-group">
+        <label class="form-label">Category *</label>
+        <select class="form-select" data-vehicle-field="category">
+          <option value="Airport pickup">Airport pickup</option>
+          <option value="City service">City service</option>
+          <option value="Tour">Tour</option>
+        </select>
+      </div>
     </div>
   `;
 }
@@ -464,12 +472,14 @@ function readVehicleRow(row) {
   const capacity = row.querySelector('[data-vehicle-field="capacity"]')?.value || '';
   const price = row.querySelector('[data-vehicle-field="price"]')?.value || '';
   const priceUnit = row.querySelector('[data-vehicle-field="price_unit"]')?.value || 'per day (fuel incl.)';
+  const category = row.querySelector('[data-vehicle-field="category"]')?.value || 'Tour';
 
   return {
     name,
     capacity,
     price,
     priceUnit,
+    category,
   };
 }
 
@@ -494,6 +504,7 @@ function collectVehicles() {
       capacity: parseInt(vehicle.capacity, 10),
       price: parseInt(vehicle.price, 10),
       price_unit: vehicle.priceUnit,
+      category: vehicle.category,
     });
   }
 
