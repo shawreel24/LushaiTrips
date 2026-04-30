@@ -327,6 +327,7 @@ export async function initGuideDetail(id) {
   document.getElementById('book-guide-btn')?.addEventListener('click', () => {
     const date = document.getElementById('guide-date')?.value;
     const total = guide.price;
-    window.router.navigate(`/book/guide-${guide.id}?date=${date}&total=${total}&type=guide&name=${encodeURIComponent(guide.name)}`);
+    const image = encodeURIComponent(guide.coverImage || guide.cover_image || '');
+    window.router.navigate(`/book/guide-${guide.id}?date=${date}&total=${total}&type=guide&name=${encodeURIComponent(guide.name)}&image=${image}`);
   });
 }

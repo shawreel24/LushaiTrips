@@ -363,6 +363,7 @@ export async function initTransportDetail(id) {
 
   document.getElementById('book-transport-btn')?.addEventListener('click', () => {
     const total = updateTotal();
-    window.router.navigate(`/book/${id}?total=${total}&type=transport&name=${encodeURIComponent(item.name)}`);
+    const image = encodeURIComponent(item.coverImage || item.cover_image || '');
+    window.router.navigate(`/book/${id}?total=${total}&type=transport&name=${encodeURIComponent(item.name)}&image=${image}`);
   });
 }

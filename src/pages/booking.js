@@ -11,13 +11,23 @@ export function renderBooking(id, params) {
   const baseTotal = parseInt(params.get('total') || 2000);
   const type = params.get('type') || 'stay';
   const bookingName = params.get('name') ? decodeURIComponent(params.get('name')) : '';
+  const bookingImage = params.get('image') ? decodeURIComponent(params.get('image')) : '';
   const serviceFeeRate = type === 'stay' ? 0.08 : ((type === 'guide' || type === 'transport') ? 0.05 : 0);
   const serviceFeePercent = Math.round(serviceFeeRate * 100);
   const serviceFee = Math.round(baseTotal * serviceFeeRate);
   const total = baseTotal + serviceFee;
 
+  const normalizedGuideId = id.startsWith('guide-') ? id.slice(6) : id;
   const stay = stays.find(s => s.id === id);
-  const listing = stay || { name: bookingName || id, price: total, coverImage: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&q=80', type: type };
+  const guide = guides.find(g => g.id === id || g.id === normalizedGuideId);
+  const transportItem = transport.find(t => t.id === id);
+  const matchedListing = type === 'stay' ? stay : (type === 'guide' ? guide : (type === 'transport' ? transportItem : null));
+  const listing = matchedListing || {
+    id,
+    name: bookingName || id,
+    coverImage: bookingImage || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&q=80',
+    type,
+  };
 
   const nights = checkin && checkout ? Math.max(1, Math.round((new Date(checkout)-new Date(checkin))/86400000)) : 1;
 
@@ -131,7 +141,11 @@ export function initBooking(id, params) {
   const serviceFee = Math.round(baseTotal * serviceFeeRate);
   const total = baseTotal + serviceFee;
   const bookingName = params.get('name') ? decodeURIComponent(params.get('name')) : id;
+  const normalizedGuideId = id.startsWith('guide-') ? id.slice(6) : id;
   const stay = stays.find(s => s.id === id);
+  const guide = guides.find(g => g.id === id || g.id === normalizedGuideId);
+  const transportItem = transport.find(t => t.id === id);
+  const matchedListing = type === 'stay' ? stay : (type === 'guide' ? guide : (type === 'transport' ? transportItem : null));
 
   const btn = document.getElementById('pay-btn');
   btn?.addEventListener('click', async () => {
@@ -145,7 +159,7 @@ export function initBooking(id, params) {
     const bookingData = {
       userId: user.id,
       listingId: id,
-      listingName: stay?.name || bookingName,
+      listingName: matchedListing?.name || bookingName,
       listingType: type,
       checkin, checkout, guests,
       total,
