@@ -12,7 +12,7 @@ export function renderBooking(id, params) {
   const type = params.get('type') || 'stay';
   const bookingName = params.get('name') ? decodeURIComponent(params.get('name')) : '';
   const bookingImage = params.get('image') ? decodeURIComponent(params.get('image')) : '';
-  const serviceFeeRate = type === 'stay' ? 0.08 : ((type === 'guide' || type === 'transport') ? 0.05 : 0);
+  const serviceFeeRate = type === 'stay' ? 0.08 : (type === 'guide' ? 0.12 : (type === 'transport' ? 0.05 : 0));
   const serviceFeePercent = Math.round(serviceFeeRate * 100);
   const serviceFee = Math.round(baseTotal * serviceFeeRate);
   const total = baseTotal + serviceFee;
@@ -138,7 +138,7 @@ export function initBooking(id, params) {
   const checkout = params.get('checkout') || '';
   const guests = params.get('guests') || '1';
   const type = params.get('type') || 'stay';
-  const serviceFeeRate = type === 'stay' ? 0.08 : ((type === 'guide' || type === 'transport') ? 0.05 : 0);
+  const serviceFeeRate = type === 'stay' ? 0.08 : (type === 'guide' ? 0.12 : (type === 'transport' ? 0.05 : 0));
   const serviceFee = Math.round(baseTotal * serviceFeeRate);
   const total = baseTotal + serviceFee;
   const bookingName = params.get('name') ? decodeURIComponent(params.get('name')) : id;
