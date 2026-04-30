@@ -204,6 +204,8 @@ export async function initStayDetail(id) {
 
 
 
+  const stayCommissionRate = 0.08;
+
   // Book now — mutable selected price so room selection can update it
   let selectedPrice = stay.price;
 
@@ -214,18 +216,20 @@ export async function initStayDetail(id) {
   const updatePrice = () => {
     const ci = new Date(checkinEl?.value); const co = new Date(checkoutEl?.value);
     const nights = Math.max(1, Math.round((co - ci) / 86400000));
-    const total = nights * selectedPrice;
+    const subtotal = nights * selectedPrice;
+    const serviceFee = Math.round(subtotal * stayCommissionRate);
+    const total = subtotal + serviceFee;
     const breakdown = document.getElementById('price-breakdown');
     if (breakdown) breakdown.innerHTML = `
       <div style="display:flex;justify-content:space-between;font-size:0.9rem;color:var(--text-muted);margin-bottom:6px">
-        <span>₹${selectedPrice.toLocaleString()} × ${nights} night${nights > 1 ? 's' : ''}</span><span>₹${(nights * selectedPrice).toLocaleString()}</span>
+        <span>₹${selectedPrice.toLocaleString()} × ${nights} night${nights > 1 ? 's' : ''}</span><span>₹${subtotal.toLocaleString()}</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:0.9rem;color:var(--text-muted);margin-bottom:6px">
-        <span>Service fee</span><span>₹${Math.round(total * 0.05).toLocaleString()}</span>
+        <span>Service fee (8%)</span><span>₹${serviceFee.toLocaleString()}</span>
       </div>
       <div style="height:1px;background:var(--glass-border);margin:10px 0"></div>
       <div style="display:flex;justify-content:space-between;font-weight:700">
-        <span>Total</span><span>₹${Math.round(total * 1.05).toLocaleString()}</span>
+        <span>Total</span><span>₹${total.toLocaleString()}</span>
       </div>
     `;
   };
@@ -255,8 +259,8 @@ export async function initStayDetail(id) {
     const ci = checkinEl?.value; const co = checkoutEl?.value; const guests = document.getElementById('guests-count')?.value;
     if (!ci || !co) { showToast('Please select dates', '', 'error'); return; }
     const nights = Math.max(1, Math.round((new Date(co) - new Date(ci)) / 86400000));
-    const total = Math.round(nights * selectedPrice * 1.05);
-    window.router.navigate(`/book/${id}?checkin=${ci}&checkout=${co}&guests=${guests}&total=${total}`);
+    const subtotal = nights * selectedPrice;
+    window.router.navigate(`/book/${id}?checkin=${ci}&checkout=${co}&guests=${guests}&total=${subtotal}`);
   });
 
   // Lightbox (property photos)

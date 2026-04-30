@@ -8,9 +8,13 @@ export function renderBooking(id, params) {
   const checkin = params.get('checkin') || '';
   const checkout = params.get('checkout') || '';
   const guests = params.get('guests') || '1';
-  const total = parseInt(params.get('total') || 2000);
+  const baseTotal = parseInt(params.get('total') || 2000);
   const type = params.get('type') || 'stay';
   const bookingName = params.get('name') ? decodeURIComponent(params.get('name')) : '';
+  const serviceFeeRate = type === 'stay' ? 0.08 : ((type === 'guide' || type === 'transport') ? 0.05 : 0);
+  const serviceFeePercent = Math.round(serviceFeeRate * 100);
+  const serviceFee = Math.round(baseTotal * serviceFeeRate);
+  const total = baseTotal + serviceFee;
 
   const stay = stays.find(s => s.id === id);
   const listing = stay || { name: bookingName || id, price: total, coverImage: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&q=80', type: type };
@@ -96,11 +100,13 @@ export function renderBooking(id, params) {
                 ` : ''}
                 <div class="divider-h" style="margin:16px 0"></div>
                 <div style="display:flex;justify-content:space-between;font-size:0.9rem;color:var(--text-muted);margin-bottom:8px">
-                  <span>Subtotal</span><span>₹${Math.round(total/1.05).toLocaleString()}</span>
+                  <span>Subtotal</span><span>₹${baseTotal.toLocaleString()}</span>
                 </div>
+                ${serviceFeeRate > 0 ? `
                 <div style="display:flex;justify-content:space-between;font-size:0.9rem;color:var(--text-muted);margin-bottom:8px">
-                  <span>Service fee (5%)</span><span>₹${Math.round(total - total/1.05).toLocaleString()}</span>
+                  <span>Service fee (${serviceFeePercent}%)</span><span>₹${serviceFee.toLocaleString()}</span>
                 </div>
+                ` : ''}
                 <div class="divider-h" style="margin:12px 0"></div>
                 <div style="display:flex;justify-content:space-between;font-weight:800;font-size:1.1rem">
                   <span>Total</span><span class="text-emerald">₹${total.toLocaleString()}</span>
@@ -116,11 +122,14 @@ export function renderBooking(id, params) {
 }
 
 export function initBooking(id, params) {
-  const total = parseInt(params.get('total') || 2000);
+  const baseTotal = parseInt(params.get('total') || 2000);
   const checkin = params.get('checkin') || '';
   const checkout = params.get('checkout') || '';
   const guests = params.get('guests') || '1';
   const type = params.get('type') || 'stay';
+  const serviceFeeRate = type === 'stay' ? 0.08 : ((type === 'guide' || type === 'transport') ? 0.05 : 0);
+  const serviceFee = Math.round(baseTotal * serviceFeeRate);
+  const total = baseTotal + serviceFee;
   const bookingName = params.get('name') ? decodeURIComponent(params.get('name')) : id;
   const stay = stays.find(s => s.id === id);
 
