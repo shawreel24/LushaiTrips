@@ -335,13 +335,46 @@ export async function initTransportDetail(id) {
   transportCache.set(item.id, item);
   root.outerHTML = renderTransportDetailContent(item);
 
-  const today = new Date();
-  const tomorrow = new Date(today);
+  const formatLocalISO = (d) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(startOfToday);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const toISO = date => date.toISOString().split('T')[0];
+  const dayAfterTomorrow = new Date(tomorrow);
+  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
 
-  document.getElementById('pickup-date').value = toISO(today);
-  document.getElementById('dropoff-date').value = toISO(tomorrow);
+  const pickupEl = document.getElementById('pickup-date');
+  const dropoffEl = document.getElementById('dropoff-date');
+
+  if (pickupEl) {
+    pickupEl.min = formatLocalISO(tomorrow);
+    pickupEl.value = formatLocalISO(tomorrow);
+  }
+  if (dropoffEl) {
+    dropoffEl.min = formatLocalISO(dayAfterTomorrow);
+    dropoffEl.value = formatLocalISO(dayAfterTomorrow);
+  }
+
+  const clampDates = () => {
+    if (!pickupEl || !dropoffEl) return;
+
+    const pickup = new Date(pickupEl.value || formatLocalISO(tomorrow));
+    const minPickup = new Date(tomorrow);
+    if (pickup < minPickup) pickupEl.value = formatLocalISO(tomorrow);
+
+    const minDropoff = new Date(pickupEl.value);
+    minDropoff.setDate(minDropoff.getDate() + 1);
+    dropoffEl.min = formatLocalISO(minDropoff);
+
+    const dropoff = new Date(dropoffEl.value || formatLocalISO(minDropoff));
+    if (dropoff < minDropoff) dropoffEl.value = formatLocalISO(minDropoff);
+  };
+  clampDates();
 
   const updateTotal = () => {
     const price = parseInt(document.getElementById('vehicle-select')?.value || 0, 10);
@@ -358,10 +391,20 @@ export async function initTransportDetail(id) {
 
   updateTotal();
   ['vehicle-select', 'pickup-date', 'dropoff-date'].forEach(fieldId => {
-    document.getElementById(fieldId)?.addEventListener('change', updateTotal);
+    document.getElementById(fieldId)?.addEventListener('change', () => {
+      clampDates();
+      updateTotal();
+    });
   });
 
   document.getElementById('book-transport-btn')?.addEventListener('click', () => {
+    const pickupDate = pickupEl?.value || '';
+    const minAllowed = formatLocalISO(tomorrow);
+    if (!pickupDate || pickupDate < minAllowed) {
+      clampDates();
+      updateTotal();
+      return;
+    }
     const total = updateTotal();
     const image = encodeURIComponent(item.coverImage || item.cover_image || '');
     window.router.navigate(`/book/${id}?total=${total}&type=transport&name=${encodeURIComponent(item.name)}&image=${image}`);

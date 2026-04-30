@@ -320,12 +320,29 @@ export async function initGuideDetail(id) {
     }
   });
 
-  const today = new Date().toISOString().split('T')[0];
+  const formatLocalISO = (d) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(startOfToday);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowISO = formatLocalISO(tomorrow);
   const dateEl = document.getElementById('guide-date');
-  if (dateEl) dateEl.value = today;
+  if (dateEl) {
+    dateEl.min = tomorrowISO;
+    dateEl.value = tomorrowISO;
+  }
 
   document.getElementById('book-guide-btn')?.addEventListener('click', () => {
     const date = document.getElementById('guide-date')?.value;
+    if (!date || date < tomorrowISO) {
+      if (dateEl) dateEl.value = tomorrowISO;
+      return;
+    }
     const total = guide.price;
     const image = encodeURIComponent(guide.coverImage || guide.cover_image || '');
     window.router.navigate(`/book/guide-${guide.id}?date=${date}&total=${total}&type=guide&name=${encodeURIComponent(guide.name)}&image=${image}`);

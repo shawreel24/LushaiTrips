@@ -195,12 +195,44 @@ export async function initStayDetail(id) {
   container.style.display = 'block';
 
   // Date defaults
-  const today = new Date(); const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-  const toISO = d => d.toISOString().split('T')[0];
+  const formatLocalISO = (d) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(startOfToday);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const dayAfterTomorrow = new Date(tomorrow);
+  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
   const checkinEl = document.getElementById('checkin-date');
   const checkoutEl = document.getElementById('checkout-date');
-  if (checkinEl) checkinEl.value = toISO(today);
-  if (checkoutEl) checkoutEl.value = toISO(tomorrow);
+  if (checkinEl) {
+    checkinEl.min = formatLocalISO(tomorrow);
+    checkinEl.value = formatLocalISO(tomorrow);
+  }
+  if (checkoutEl) {
+    checkoutEl.min = formatLocalISO(dayAfterTomorrow);
+    checkoutEl.value = formatLocalISO(dayAfterTomorrow);
+  }
+
+  const clampDates = () => {
+    if (!checkinEl || !checkoutEl) return;
+
+    const ci = new Date(checkinEl.value || formatLocalISO(tomorrow));
+    const minCi = new Date(tomorrow);
+    if (ci < minCi) checkinEl.value = formatLocalISO(tomorrow);
+
+    const minCo = new Date(checkinEl.value);
+    minCo.setDate(minCo.getDate() + 1);
+    checkoutEl.min = formatLocalISO(minCo);
+
+    const co = new Date(checkoutEl.value || formatLocalISO(minCo));
+    if (co < minCo) checkoutEl.value = formatLocalISO(minCo);
+  };
+  clampDates();
 
 
 
@@ -234,8 +266,8 @@ export async function initStayDetail(id) {
     `;
   };
   updatePrice();
-  checkinEl?.addEventListener('change', updatePrice);
-  checkoutEl?.addEventListener('change', updatePrice);
+  checkinEl?.addEventListener('change', () => { clampDates(); updatePrice(); });
+  checkoutEl?.addEventListener('change', () => { clampDates(); updatePrice(); });
 
   // Room type selection — updates widget price
   document.getElementById('room-types-list')?.addEventListener('click', e => {
@@ -258,6 +290,13 @@ export async function initStayDetail(id) {
   document.getElementById('reserve-btn')?.addEventListener('click', () => {
     const ci = checkinEl?.value; const co = checkoutEl?.value; const guests = document.getElementById('guests-count')?.value;
     if (!ci || !co) { showToast('Please select dates', '', 'error'); return; }
+    const minAllowed = formatLocalISO(tomorrow);
+    if (ci < minAllowed || co <= ci) {
+      showToast('Please choose valid dates', 'Bookings start from tomorrow.', 'error');
+      clampDates();
+      updatePrice();
+      return;
+    }
     const nights = Math.max(1, Math.round((new Date(co) - new Date(ci)) / 86400000));
     const subtotal = nights * selectedPrice;
     const image = encodeURIComponent(stay.coverImage || stay.cover_image || stay.images?.[0] || '');
