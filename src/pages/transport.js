@@ -198,6 +198,7 @@ function renderTransportDetailContent(item) {
               </div>
               <div class="form-group"><label class="form-label">Pickup Date</label><input type="date" class="form-input" id="pickup-date" /></div>
               <div class="form-group" id="dropoff-wrap"><label class="form-label">Drop-off Date</label><input type="date" class="form-input" id="dropoff-date" /></div>
+              <div class="form-group" id="km-wrap" style="display:none"><label class="form-label">Distance (km)</label><input type="number" class="form-input" id="km-input" min="1" value="1" placeholder="Enter kilometres" /></div>
               <div class="form-group"><label class="form-label">Pickup Location</label><input type="text" class="form-input" id="pickup-loc" placeholder="e.g. Aizawl Airport" /></div>
               <div id="transport-total" style="background:var(--glass);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px;font-size:0.9rem;color:var(--text-muted)">Select vehicle and dates to see total</div>
               <button class="btn btn-primary w-full" id="book-transport-btn" style="justify-content:center;padding:16px;margin-bottom:12px">Book Now -></button>
@@ -344,6 +345,8 @@ export async function initTransportDetail(id) {
   const serviceEl = document.getElementById('service-select');
   const vehicleEl = document.getElementById('vehicle-select');
   const dropoffWrap = document.getElementById('dropoff-wrap');
+  const kmWrap = document.getElementById('km-wrap');
+  const kmInput = document.getElementById('km-input');
 
   const formatLocalISO = (d) => {
     const yyyy = d.getFullYear();
@@ -364,6 +367,10 @@ export async function initTransportDetail(id) {
   const allVehicles = Array.isArray(item?.vehicles) ? item.vehicles : [];
   const getActiveCategory = () => serviceEl?.value || allVehicles[0]?.category || 'Tour';
   const getVehiclesForCategory = (category) => allVehicles.filter(v => (v.category || 'Tour') === category);
+  const getSelectedPriceUnit = () => {
+    const sel = vehicleEl?.options[vehicleEl.selectedIndex];
+    return sel?.dataset?.priceUnit || 'per day';
+  };
   const refreshVehicleOptions = () => {
     if (!vehicleEl) return;
     const category = getActiveCategory();
@@ -376,8 +383,14 @@ export async function initTransportDetail(id) {
   const updateServiceUi = () => {
     const category = getActiveCategory();
     const isTour = category.toLowerCase() === 'tour';
-    if (dropoffWrap) dropoffWrap.style.display = isTour ? '' : 'none';
-    if (!isTour && pickupEl && dropoffEl) {
+    const isPerKm = getSelectedPriceUnit() === 'per km';
+
+    // Show/hide drop-off date (hide for non-tour AND per-km)
+    if (dropoffWrap) dropoffWrap.style.display = (isTour && !isPerKm) ? '' : 'none';
+    // Show/hide km input
+    if (kmWrap) kmWrap.style.display = isPerKm ? '' : 'none';
+
+    if (!isTour && !isPerKm && pickupEl && dropoffEl) {
       dropoffEl.value = pickupEl.value;
     }
   };
@@ -430,12 +443,22 @@ export async function initTransportDetail(id) {
     const dropoff = new Date(document.getElementById('dropoff-date')?.value);
     const category = getActiveCategory();
     const isTour = category.toLowerCase() === 'tour';
-    const days = isTour ? Math.max(1, Math.round((dropoff - pickup) / 86400000)) : 1;
-    const total = price * days;
+    const isPerKm = getSelectedPriceUnit() === 'per km';
+
+    let total, unitLabel, qty;
+    if (isPerKm) {
+      qty = Math.max(1, parseInt(kmInput?.value || 1, 10));
+      total = price * qty;
+      unitLabel = 'km';
+    } else {
+      qty = isTour ? Math.max(1, Math.round((dropoff - pickup) / 86400000)) : 1;
+      total = price * qty;
+      unitLabel = isTour ? `day${qty > 1 ? 's' : ''}` : 'trip';
+    }
+
     const el = document.getElementById('transport-total');
     if (el) {
-      const unitLabel = isTour ? `day${days > 1 ? 's' : ''}` : 'trip';
-      el.innerHTML = `<div class="flex-between"><span>Rs ${price.toLocaleString()} x ${days} ${unitLabel}</span><strong style="color:var(--text)">Rs ${total.toLocaleString()}</strong></div>`;
+      el.innerHTML = `<div class="flex-between"><span>Rs ${price.toLocaleString()} × ${qty} ${unitLabel}</span><strong style="color:var(--text)">Rs ${total.toLocaleString()}</strong></div>`;
     }
     return total;
   };
@@ -448,6 +471,9 @@ export async function initTransportDetail(id) {
       updateTotal();
     });
   });
+
+  // Live-update total as the user types kilometres
+  kmInput?.addEventListener('input', () => updateTotal());
 
   document.getElementById('book-transport-btn')?.addEventListener('click', () => {
     const pickupDate = pickupEl?.value || '';
