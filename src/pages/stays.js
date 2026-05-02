@@ -1,6 +1,5 @@
 import { fetchStays } from '../lib/supabase.js';
 import { starsHTML } from '../utils.js';
-import { seedStays } from '../data/stays.js';
 
 export function renderStays() {
   return `
@@ -26,7 +25,7 @@ export function renderStays() {
 
 export async function initStays() {
   let activeType = 'all';
-  let allStays = seedStays; // start with seed data
+  let allStays = []; 
 
   const grid = document.getElementById('stays-grid');
 
@@ -43,10 +42,7 @@ export async function initStays() {
     );
   };
 
-  // ① Render seed data INSTANTLY — no spinner
-  renderGrid(allStays);
-
-  // ② Wire filter chips
+  // Wire filter chips
   document.querySelectorAll('.chip[data-type]').forEach(chip => {
     chip.addEventListener('click', () => {
       document.querySelectorAll('.chip[data-type]').forEach(c => c.classList.remove('active'));
@@ -56,19 +52,14 @@ export async function initStays() {
     });
   });
 
-  // ③ Silently fetch live Supabase data in background
+  // Fetch live Supabase data
   try {
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('timeout')), 8000)
-    );
-    const liveStays = await Promise.race([fetchStays(), timeout]);
-    if (liveStays && liveStays.length) {
-      allStays = liveStays;
-      renderGrid(allStays);
-    }
+    const liveStays = await fetchStays();
+    allStays = liveStays || [];
+    renderGrid(allStays);
   } catch (e) {
-    // Seed data already shown — silent failure is fine
-    console.warn('[stays] Live fetch failed, showing seed data:', e.message);
+    console.warn('[stays] Live fetch failed:', e.message);
+    renderGrid([]);
   }
 }
 
